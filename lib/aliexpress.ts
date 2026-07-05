@@ -1,3 +1,4 @@
+
 import crypto from "crypto";
 import cache, { FIVE_HOURS, ONE_HOUR } from "./cache";
 import { getKeywordsForPage } from "./rotation";
@@ -255,7 +256,7 @@ export async function getCachedProductsByIds(ids: string[]): Promise<AliProduct[
   return data.map((row: any) => row.source_payload as AliProduct);
 }
 
-// ─── $1 to $5 Premium Engine ─────────────────────────────────────────────────
+// ─── $1 to $5 Premium Engine (STRICT REFACTOR) ───────────────────────────────
 export async function getUnderFiveShop(options: {
   page?: number;
   pageSize?: number;
@@ -264,10 +265,11 @@ export async function getUnderFiveShop(options: {
   sort?: string;
 }): Promise<ProductQueryResult> {
   const page = options.page || 1;
-  const pageSize = options.pageSize || 40;
-  const targetKeyword = options.keyword || "useful devices smart equipment utilities gadgets accessories";
+  const pageSize = options.pageSize || 50; // Increased size for deep filtering matrix
+  const targetKeyword = options.keyword || "useful gadgets smart equipment utilities gadgets accessories";
 
-  return searchProducts(targetKeyword, {
+  // Dedicated execution layer for strictly securing max price constraint
+  const result = await searchProducts(targetKeyword, {
     page,
     pageSize,
     categoryId: options.categoryId,
@@ -275,6 +277,16 @@ export async function getUnderFiveShop(options: {
     maxPrice: "5.00",
     sort: options.sort || "VOLUME_DESC"
   });
+
+  // BULLETPROOF BACKEND LAYER: Post-filtering response array to instantly eliminate leakage
+  if (result.products && result.products.length > 0) {
+    result.products = result.products.filter(p => {
+      const actualPrice = parseFloat(p.sale_price || "0");
+      return actualPrice >= 0.50 && actualPrice <= 5.05; // Strict bounds check
+    });
+  }
+
+  return result;
 }
 
 // ─── Search Products ─────────────────────────────────────────────────────────
@@ -311,7 +323,11 @@ export async function searchProducts(
   }
 
   const effectiveKeyword = baseKeyword;
-  const queryKey = `search:${effectiveKeyword.toLowerCase().replace(/\s+/g, "-")}:cat:${targetCategoryIds || "all"}:sort:${options.sort || "default"}:page:${page}:seed:${activeSeed}`;
+  
+  // Custom unique identifier tracking price constraints into localized cached states
+  const minPr = options.minPrice || "none";
+  const maxPr = options.maxPrice || "none";
+  const queryKey = `search:${effectiveKeyword.toLowerCase().replace(/\s+/g, "-")}:cat:${targetCategoryIds || "all"}:sort:${options.sort || "default"}:min:${minPr}:max:${maxPr}:page:${page}:seed:${activeSeed}`;
 
   const memCached = cache.get<ProductQueryResult>(queryKey);
   if (memCached) return memCached;
@@ -464,7 +480,7 @@ export async function getProductDetail(productId: string): Promise<AliProduct | 
       price: parseFloat(product.original_price) || 0,
       sale_price: parseFloat(product.sale_price) || 0,
       rating: parseFloat(product.evaluate_rate) || 4.5,
-      affiliate_url: product.promotion_link,
+      affiliate_url: p.promotion_link,
       source_payload: product as any,
       category_slug: product.first_level_category_id || "",
       source: "aliexpress",
