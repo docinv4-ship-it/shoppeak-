@@ -1,4 +1,3 @@
-
 import crypto from "crypto";
 import cache, { FIVE_HOURS, ONE_HOUR } from "./cache";
 import { getKeywordsForPage } from "./rotation";
@@ -220,7 +219,6 @@ function parseProduct(raw: Record<string, unknown>): AliProduct {
   return injectTrustLayer(parsed);
 }
 
-// Safe Node Extractor
 function extractRawProducts(resultNode: any): any[] {
   if (!resultNode || !resultNode.products) return [];
   const pNode = resultNode.products.product;
@@ -250,11 +248,33 @@ async function syncProductsToCache(products: AliProduct[]) {
   await (supabase.from("cached_products") as any).upsert(rows, { onConflict: "product_id" });
 }
 
-async function getCachedProductsByIds(ids: string[]): Promise<AliProduct[]> {
+export async function getCachedProductsByIds(ids: string[]): Promise<AliProduct[]> {
   if (!ids || !ids.length) return [];
   const { data } = await (supabase.from("cached_products") as any).select("source_payload").in("product_id", ids);
   if (!data) return [];
   return data.map((row: any) => row.source_payload as AliProduct);
+}
+
+// ─── $1 to $5 Premium Engine ─────────────────────────────────────────────────
+export async function getUnderFiveShop(options: {
+  page?: number;
+  pageSize?: number;
+  categoryId?: string;
+  keyword?: string;
+  sort?: string;
+}): Promise<ProductQueryResult> {
+  const page = options.page || 1;
+  const pageSize = options.pageSize || 40;
+  const targetKeyword = options.keyword || "useful devices smart equipment utilities gadgets accessories";
+
+  return searchProducts(targetKeyword, {
+    page,
+    pageSize,
+    categoryId: options.categoryId,
+    minPrice: "1.00",
+    maxPrice: "5.00",
+    sort: options.sort || "VOLUME_DESC"
+  });
 }
 
 // ─── Search Products ─────────────────────────────────────────────────────────
@@ -291,8 +311,6 @@ export async function searchProducts(
   }
 
   const effectiveKeyword = baseKeyword;
-
-  // Normalized Cache Key identifier
   const queryKey = `search:${effectiveKeyword.toLowerCase().replace(/\s+/g, "-")}:cat:${targetCategoryIds || "all"}:sort:${options.sort || "default"}:page:${page}:seed:${activeSeed}`;
 
   const memCached = cache.get<ProductQueryResult>(queryKey);
@@ -322,14 +340,10 @@ export async function searchProducts(
     const result = resp?.result;
     const rawProducts = extractRawProducts(result);
 
-    // FIXED CRITICAL FALLBACK PROTECTION:
-    // Yield backup layer dynamically shifts when API items return empty array or less than 5 items.
     if (!rawProducts || rawProducts.length < 5) {
       if (targetCategoryIds) {
-        console.warn(`[Failover Activated] Low product count for Category: ${targetCategoryIds}. Retrying organically...`);
         return searchProducts(effectiveKeyword, { ...options, categoryId: undefined });
       }
-      // If we are already running without category bounds, force broad fallback string matching
       if (effectiveKeyword !== "top trending products") {
         return searchProducts("top trending products", { page, pageSize, seed: activeSeed });
       }
@@ -341,7 +355,6 @@ export async function searchProducts(
     const totalPage = Math.min(Math.ceil(totalCount / pageSize), 200);
 
     const resultPayload: ProductQueryResult = { products: parsedProducts, totalPage, currentPage: page, totalCount };
-
     cache.set(queryKey, resultPayload, ONE_HOUR);
 
     syncProductsToCache(parsedProducts).then(async () => {
@@ -373,7 +386,6 @@ export async function getHotProducts(
   const page = Math.max(1, options.page || 1);
   const pageSize = Math.min(options.pageSize || 50, 50);
   const activeSeed = options.seed || Math.floor(Math.random() * 100);
-
   const effectiveKeyword = keywords || "top trending";
 
   let targetCategoryIds = "";
@@ -478,12 +490,11 @@ export async function getBrowseProducts(options: {
   const page = Math.max(1, options.page || 1);
   const pageSize = Math.min(options.pageSize || 50, 50);
   const activeSeed = options.seed || Math.floor(Math.random() * 100);
-
   const keyword = options.keyword || "top trending";
   return searchProducts(keyword, { page, pageSize, categoryId: options.categoryId, sort: options.sort, seed: activeSeed });
 }
 
-// ─── Deals (FIXED INVALID SORT FILTER AND KEYWORD) ───────────────────────────
+// ─── Deals ───────────────────────────────────────────────────────────────────
 export async function getDealsProducts(options: {
   page?: number;
   pageSize?: number;
@@ -493,15 +504,10 @@ export async function getDealsProducts(options: {
   const page = Math.max(1, options.page || 1);
   const pageSize = Math.min(options.pageSize || 50, 50);
   const activeSeed = options.seed || Math.floor(Math.random() * 100);
-
-  // Broad organic keyword mapping to avoid empty array returns
   const keyword = "sale clearance super deals";
 
   if (page % 2 === 0) {
     return getHotProducts(keyword, { page, pageSize, categoryId: options.categoryId, seed: activeSeed });
   }
-  
-  // FIXED: Replaced completely invalid string "DISCOUNT_DESC" with verified valid "SALE_PRICE_ASC" 
-  // or defaults to let AliExpress system process queries natively without crashing.
   return searchProducts(keyword, { page, pageSize, categoryId: options.categoryId, sort: "SALE_PRICE_ASC", seed: activeSeed });
 }
