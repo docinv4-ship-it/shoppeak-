@@ -255,7 +255,7 @@ export async function getCachedProductsByIds(ids: string[]): Promise<AliProduct[
   return data.map((row: any) => row.source_payload as AliProduct);
 }
 
-// ─── $1 to $5 Premium Engine (STRICT REFACTOR) ───────────────────────────────
+// ─── $1 to $5 Premium Engine (STRICT & GUARANTEED FALLBACK) ──────────────────
 export async function getUnderFiveShop(options: {
   page?: number;
   pageSize?: number;
@@ -264,24 +264,47 @@ export async function getUnderFiveShop(options: {
   sort?: string;
 }): Promise<ProductQueryResult> {
   const page = options.page || 1;
-  const pageSize = options.pageSize || 50; // Increased size for deep filtering matrix
-  const targetKeyword = options.keyword || "useful gadgets smart equipment utilities gadgets accessories";
+  const pageSize = options.pageSize || 40;
+  
+  // Clean, singular targeted keywords instead of long stuffed phrases to maintain API response density
+  const lowBudgetKeywords = [
+    "mini gadget", 
+    "cable organizer", 
+    "smart tool", 
+    "pocket multi tool", 
+    "led light keychain"
+  ];
+  
+  // Pick an index cleanly based on page number rotation so different pages yield different items
+  const selectedKeywordIdx = (page - 1) % lowBudgetKeywords.length;
+  const targetKeyword = options.keyword || lowBudgetKeywords[selectedKeywordIdx];
 
-  // Dedicated execution layer for strictly securing max price constraint
-  const result = await searchProducts(targetKeyword, {
+  // Try fetching targeted clean low budget stream
+  let result = await searchProducts(targetKeyword, {
     page,
     pageSize,
     categoryId: options.categoryId,
-    minPrice: "1.00",
-    maxPrice: "5.00",
+    minPrice: "0.50",
+    maxPrice: "4.99",
     sort: options.sort || "VOLUME_DESC"
   });
 
-  // BULLETPROOF BACKEND LAYER: Post-filtering response array to instantly eliminate leakage
+  // Safe recovery fallback if the target keyword combinations still result in empty response
+  if (!result.products || result.products.length === 0) {
+    result = await searchProducts("trending cheap tools", {
+      page,
+      pageSize,
+      minPrice: "0.30",
+      maxPrice: "4.95",
+      sort: "VOLUME_DESC"
+    });
+  }
+
+  // Pure strict clamp mechanism to prevent any luxury leaks on client layout
   if (result.products && result.products.length > 0) {
     result.products = result.products.filter(p => {
-      const actualPrice = parseFloat(p.sale_price || "0");
-      return actualPrice >= 0.50 && actualPrice <= 5.05; // Strict bounds check
+      const price = parseFloat(p.sale_price || "0");
+      return price > 0 && price <= 5.10; 
     });
   }
 
@@ -323,7 +346,6 @@ export async function searchProducts(
 
   const effectiveKeyword = baseKeyword;
 
-  // Custom unique identifier tracking price constraints into localized cached states
   const minPr = options.minPrice || "none";
   const maxPr = options.maxPrice || "none";
   const queryKey = `search:${effectiveKeyword.toLowerCase().replace(/\s+/g, "-")}:cat:${targetCategoryIds || "all"}:sort:${options.sort || "default"}:min:${minPr}:max:${maxPr}:page:${page}:seed:${activeSeed}`;
@@ -355,7 +377,7 @@ export async function searchProducts(
     const result = resp?.result;
     const rawProducts = extractRawProducts(result);
 
-    if (!rawProducts || rawProducts.length < 5) {
+    if (!rawProducts || rawProducts.length < 2) {
       if (targetCategoryIds) {
         return searchProducts(effectiveKeyword, { ...options, categoryId: undefined });
       }
