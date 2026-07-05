@@ -160,9 +160,17 @@ function HeaderSearch() {
               )}
             </form>
 
-            {/* Desktop Quick-Access Core Sync (Wishlist & Cart Icons) */}
-            <div className="hidden sm:flex items-center gap-4 text-white font-bold text-sm flex-shrink-0">
+            {/* Desktop Quick-Access Core Sync (Wishlist, Cart & Under 5$ Icons) */}
+            <div className="hidden sm:flex items-center gap-3 md:gap-4 text-white font-bold text-sm flex-shrink-0">
               
+              {/* Desktop Under 5$ Conversion Trigger Button */}
+              <Link 
+                href="/under-5-shop" 
+                className="bg-yellow-300 hover:bg-yellow-400 text-black font-black text-xs px-3 py-1.5 rounded-xl transition-all flex items-center gap-1 shadow-sm uppercase tracking-wider scale-100 hover:scale-[1.03] active:scale-95 duration-150 shrink-0"
+              >
+                <span className="text-xs animate-pulse">✨</span> under 5$
+              </Link>
+
               {/* Dynamic Wishlist Module */}
               <Link href="/wishlist" className="relative group p-1.5 flex flex-col items-center justify-center hover:text-yellow-100 transition-colors">
                 <Heart size={21} className="group-hover:scale-105 transition-transform" />
@@ -209,6 +217,9 @@ function HeaderSearch() {
             <Link href="/trending" className="text-yellow-200 text-xs whitespace-nowrap px-2.5 py-1 rounded-full hover:bg-orange-600 transition-colors font-bold flex-shrink-0 ml-1">
               📈 Trending
             </Link>
+            <Link href="/under-5-shop" className="text-yellow-200 text-xs whitespace-nowrap px-2.5 py-1 rounded-full hover:bg-orange-600 transition-colors font-bold flex-shrink-0 ml-1">
+              ✨ under 5$
+            </Link>
             <Link href="/deals" className="text-yellow-200 text-xs whitespace-nowrap px-2.5 py-1 rounded-full hover:bg-orange-600 transition-colors font-bold flex-shrink-0 ml-auto">
               🔥 Flash Sale
             </Link>
@@ -242,6 +253,17 @@ function HeaderSearch() {
               <Link href="/cart" onClick={() => setDrawerOpen(false)} className="flex items-center justify-center gap-2 py-2 px-3 bg-orange-50 border border-orange-200 rounded-xl text-xs font-bold text-orange-600 shadow-sm">
                 <ShoppingCart size={15} className="text-orange-500" />
                 Cart ({cartItemsCount})
+              </Link>
+            </div>
+
+            {/* Mobile Under 5$ Express Action Banner */}
+            <div className="px-3 pt-3 pb-1 border-b border-gray-100 bg-white">
+              <Link 
+                href="/under-5-shop" 
+                onClick={() => setDrawerOpen(false)} 
+                className="flex items-center justify-center gap-2 py-2.5 px-4 bg-yellow-300 hover:bg-yellow-400 text-black rounded-xl text-xs font-black shadow-sm uppercase tracking-wider transition-all w-full text-center"
+              >
+                <span>✨</span> under 5$ store
               </Link>
             </div>
 
