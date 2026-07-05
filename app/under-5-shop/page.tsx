@@ -1,6 +1,7 @@
 import { getUnderFiveShop } from "@/lib/aliexpress";
 import ProductCard from "@/components/ProductCard";
-import Link from "next/link"; // FIXED: Changed from "next/next" to "next/link"
+import UnderFiveDropdown from "@/components/UnderFiveDropdown"; // FIXED: Separate Client Dropdown
+import Link from "next/link";
 
 export const metadata = {
   title: "$1 to $5 Super Thrift Arcade | ShopPeak",
@@ -76,21 +77,12 @@ export default async function UnderFiveShopPage({
           Select Category:
         </label>
         <div className="relative w-full">
-          <select
-            id="cat-dropdown"
-            defaultValue={currentKeyword}
-            onChange={(e) => {
-              const val = encodeURIComponent(e.target.value);
-              window.location.href = `/under-5-shop?cat=${val}&sort=${currentSort}`;
-            }}
-            className="w-full bg-white text-gray-800 text-sm font-semibold px-4 py-2.5 rounded-lg border border-gray-200 focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-all appearance-none cursor-pointer shadow-sm"
-          >
-            {filters.map((f) => (
-              <option key={f.label} value={f.key}>
-                {f.label}
-              </option>
-            ))}
-          </select>
+          {/* Client Component Dropdown Injected Safely */}
+          <UnderFiveDropdown 
+            filters={filters} 
+            currentKeyword={currentKeyword} 
+            currentSort={currentSort} 
+          />
           <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-500 border-l border-gray-100">
             <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
               <path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/>
