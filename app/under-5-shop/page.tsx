@@ -1,6 +1,6 @@
 import { getUnderFiveShop } from "@/lib/aliexpress";
 import ProductCard from "@/components/ProductCard";
-import Link from "next/next";
+import Link from "next/link"; // FIXED: Changed from "next/next" to "next/link"
 
 export const metadata = {
   title: "$1 to $5 Super Thrift Arcade | ShopPeak",
@@ -54,9 +54,6 @@ export default async function UnderFiveShopPage({
     sort: currentSort,
     keyword: currentKeyword,
   });
-
-  // Finding the currently selected filter label for UI state persistence
-  const activeFilter = filters.find(f => f.key === currentKeyword) || filters[0];
 
   return (
     <main className="bg-white min-h-screen max-w-7xl mx-auto px-4 py-12 selection:bg-orange-500 selection:text-white">
