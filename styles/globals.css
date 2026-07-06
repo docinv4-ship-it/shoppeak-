@@ -8,6 +8,25 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
+/* ==========================================
+   🔥 FIX: INPUTS & FILTERS TEXT OPAQUE VISIBILITY
+   ========================================== */
+input, select, textarea, option {
+  color: #000000 !important;              /* Pure text color bold black */
+  background-color: #ffffff !important;    /* Background solid white */
+  opacity: 1 !important;                   /* Blur/transparency khatam */
+  -webkit-text-fill-color: #000000 !important; /* Mobile browsers override fix */
+}
+
+/* Search bar ke andar "Search products..." text ko sharp karne ke liye */
+input::placeholder {
+  color: #6b7280 !important;               /* Medium gray placeholder */
+  opacity: 1 !important;
+}
+
+/* ==========================================
+   UTILITIES
+   ========================================== */
 .line-clamp-1 { overflow: hidden; display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; }
 .line-clamp-2 { overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 .line-clamp-3 { overflow: hidden; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; }
