@@ -7,9 +7,11 @@ const APP_SECRET = process.env.ALIEXPRESS_APP_SECRET!;
 const AFFILIATE_ID = process.env.ALIEXPRESS_AFFILIATE_ID || "ShopPeak666";
 const API_BASE = process.env.ALIEXPRESS_API_BASE_URL || "https://api-sg.aliexpress.com/sync";
 
-const TEN_MINUTES = 10 * 60 * 1000;
 const THIRTY_MINUTES = 30 * 60 * 1000;
 const TWO_HOURS = 2 * 60 * 60 * 1000;
+const MAX_PAGE_SIZE = 50;
+const MAX_TOTAL_PAGES = 2000;
+const MIN_RESULTS_BEFORE_WIDENING = 12;
 
 type SectionKind = "search" | "browse" | "trending" | "deals" | "new-arrivals" | "budget";
 
@@ -62,6 +64,7 @@ interface QueryOptions {
   maxPrice?: string;
   seed?: number;
   isGlobalBrowse?: boolean;
+  section?: SectionKind;
 }
 
 interface Profile {
@@ -94,7 +97,7 @@ const CATEGORY_POOLS: Record<string, string[]> = {
     "power bank",
     "charger cable",
     "mechanical keyboard",
-    "mini projector"
+    "mini projector",
   ],
   phones: [
     "smartphone 5g",
@@ -104,7 +107,7 @@ const CATEGORY_POOLS: Record<string, string[]> = {
     "power bank",
     "phone holder",
     "phone stand",
-    "earbuds"
+    "earbuds",
   ],
   gadgets: [
     "smart gadget",
@@ -114,7 +117,7 @@ const CATEGORY_POOLS: Record<string, string[]> = {
     "smart watch",
     "usb hub",
     "camera accessory",
-    "smart home device"
+    "smart home device",
   ],
   fashion: [
     "men shoes",
@@ -125,7 +128,7 @@ const CATEGORY_POOLS: Record<string, string[]> = {
     "hoodie",
     "t shirt",
     "watch",
-    "sunglasses"
+    "sunglasses",
   ],
   home: [
     "kitchen tools",
@@ -135,7 +138,7 @@ const CATEGORY_POOLS: Record<string, string[]> = {
     "desk organizer",
     "bathroom accessory",
     "curtain",
-    "bed sheet"
+    "bed sheet",
   ],
   beauty: [
     "skincare",
@@ -145,7 +148,7 @@ const CATEGORY_POOLS: Record<string, string[]> = {
     "hair remover",
     "face mask",
     "beauty tools",
-    "nail art"
+    "nail art",
   ],
   sports: [
     "fitness equipment",
@@ -155,7 +158,7 @@ const CATEGORY_POOLS: Record<string, string[]> = {
     "yoga mat",
     "cycling accessory",
     "outdoor gear",
-    "camping equipment"
+    "camping equipment",
   ],
   automotive: [
     "car accessories",
@@ -165,7 +168,7 @@ const CATEGORY_POOLS: Record<string, string[]> = {
     "car led light",
     "dash cam",
     "car cleaning",
-    "motorcycle accessory"
+    "motorcycle accessory",
   ],
   toys: [
     "kids toy",
@@ -175,7 +178,7 @@ const CATEGORY_POOLS: Record<string, string[]> = {
     "doll",
     "puzzle",
     "robot toy",
-    "stuffed toy"
+    "stuffed toy",
   ],
   accessories: [
     "watch strap",
@@ -185,7 +188,7 @@ const CATEGORY_POOLS: Record<string, string[]> = {
     "phone accessory",
     "sunglasses",
     "jewelry accessory",
-    "hair accessory"
+    "hair accessory",
   ],
   men: [
     "men t shirt",
@@ -195,7 +198,7 @@ const CATEGORY_POOLS: Record<string, string[]> = {
     "men jacket",
     "men shorts",
     "men bag",
-    "men belt"
+    "men belt",
   ],
   women: [
     "women dress",
@@ -205,7 +208,7 @@ const CATEGORY_POOLS: Record<string, string[]> = {
     "women jewelry",
     "women jacket",
     "women top",
-    "women accessories"
+    "women accessories",
   ],
   kids: [
     "kids clothing",
@@ -215,7 +218,7 @@ const CATEGORY_POOLS: Record<string, string[]> = {
     "baby accessory",
     "school bag",
     "children watch",
-    "children learning toy"
+    "children learning toy",
   ],
   tools: [
     "hand tools",
@@ -225,7 +228,7 @@ const CATEGORY_POOLS: Record<string, string[]> = {
     "repair tools",
     "measuring tool",
     "hardware accessory",
-    "workshop tools"
+    "workshop tools",
   ],
   health: [
     "health care",
@@ -235,7 +238,7 @@ const CATEGORY_POOLS: Record<string, string[]> = {
     "medical aid",
     "wellness product",
     "home therapy",
-    "body care"
+    "body care",
   ],
   office: [
     "office chair",
@@ -245,7 +248,7 @@ const CATEGORY_POOLS: Record<string, string[]> = {
     "mouse",
     "file organizer",
     "office lamp",
-    "printer accessory"
+    "printer accessory",
   ],
   pets: [
     "pet toy",
@@ -255,7 +258,7 @@ const CATEGORY_POOLS: Record<string, string[]> = {
     "pet house",
     "pet leash",
     "cat accessory",
-    "dog accessory"
+    "dog accessory",
   ],
   travel: [
     "travel bag",
@@ -265,7 +268,7 @@ const CATEGORY_POOLS: Record<string, string[]> = {
     "luggage accessory",
     "portable charger",
     "travel bottle",
-    "travel organizer"
+    "travel organizer",
   ],
   jewelry: [
     "luxury watch",
@@ -275,7 +278,7 @@ const CATEGORY_POOLS: Record<string, string[]> = {
     "earrings",
     "fashion jewelry",
     "gift jewelry",
-    "ring"
+    "ring",
   ],
   lighting: [
     "led lamp",
@@ -285,7 +288,7 @@ const CATEGORY_POOLS: Record<string, string[]> = {
     "pendant light",
     "light bulb",
     "wall light",
-    "strip light"
+    "strip light",
   ],
   appliances: [
     "air fryer",
@@ -295,7 +298,7 @@ const CATEGORY_POOLS: Record<string, string[]> = {
     "kitchen appliance",
     "portable heater",
     "fan",
-    "home appliance"
+    "home appliance",
   ],
   industrial: [
     "cnc tool",
@@ -305,7 +308,7 @@ const CATEGORY_POOLS: Record<string, string[]> = {
     "measuring equipment",
     "workshop machine",
     "heavy duty tool",
-    "hardware machine"
+    "hardware machine",
   ],
   audio: [
     "wireless earbuds",
@@ -315,7 +318,7 @@ const CATEGORY_POOLS: Record<string, string[]> = {
     "microphone",
     "amplifier",
     "studio headset",
-    "audio accessory"
+    "audio accessory",
   ],
   solar: [
     "solar panel",
@@ -325,8 +328,8 @@ const CATEGORY_POOLS: Record<string, string[]> = {
     "power station",
     "solar charger",
     "energy storage",
-    "solar kit"
-  ]
+    "solar kit",
+  ],
 };
 
 const CATEGORY_ALIASES: Record<string, string> = {
@@ -344,7 +347,7 @@ const CATEGORY_ALIASES: Record<string, string> = {
   "professional audio": "audio",
   "security & cctv": "industrial",
   "solar & energy": "solar",
-  "medical & mobility": "health"
+  "medical & mobility": "health",
 };
 
 const BROWSE_POOLS = [
@@ -362,7 +365,7 @@ const BROWSE_POOLS = [
   "travel bag",
   "beauty tools",
   "gaming headset",
-  "usb charger"
+  "usb charger",
 ];
 
 const TRENDING_POOLS = [
@@ -375,7 +378,7 @@ const TRENDING_POOLS = [
   "beauty device",
   "home gadget",
   "tech accessory",
-  "travel gadget"
+  "travel gadget",
 ];
 
 const DEALS_POOLS = [
@@ -386,7 +389,7 @@ const DEALS_POOLS = [
   "budget tech",
   "limited offer item",
   "coupon product",
-  "free shipping deal"
+  "free shipping deal",
 ];
 
 const NEW_ARRIVALS_POOLS = [
@@ -397,7 +400,7 @@ const NEW_ARRIVALS_POOLS = [
   "new home product",
   "new tech gadget",
   "new office accessory",
-  "new travel accessory"
+  "new travel accessory",
 ];
 
 const BUDGET_POOLS = [
@@ -408,7 +411,7 @@ const BUDGET_POOLS = [
   "phone accessory cheap",
   "earbuds cheap",
   "fashion accessory low price",
-  "home organizer cheap"
+  "home organizer cheap",
 ];
 
 function nowTimestamp(): string {
@@ -487,12 +490,14 @@ function extractTotalCount(root: any): number {
     root?.result?.total_record_count,
     root?.result?.total_count,
     root?.resp_result?.result?.total_record_count,
-    root?.resp_result?.result?.total_count
+    root?.resp_result?.result?.total_count,
   ];
+
   for (const c of candidates) {
     const n = Number(c);
     if (Number.isFinite(n) && n > 0) return n;
   }
+
   return 0;
 }
 
@@ -512,7 +517,7 @@ function extractRawProducts(root: any): any[] {
     root?.resp_result?.result?.products,
     root?.resp_result?.result?.product,
     root?.resp_result?.result?.items?.item,
-    root?.resp_result?.result?.items
+    root?.resp_result?.result?.items,
   ];
 
   for (const candidate of stack) {
@@ -543,6 +548,12 @@ function normalizeImageUrls(value: any): { string: string[] } | undefined {
     return { string: arr.map(String).filter(Boolean) };
   }
   return undefined;
+}
+
+function rotateBySeed<T>(items: T[], seed: number): T[] {
+  if (!items.length) return items;
+  const offset = Math.abs(seed) % items.length;
+  return [...items.slice(offset), ...items.slice(0, offset)];
 }
 
 function buildProfile(categoryInput?: string): Profile {
@@ -585,7 +596,7 @@ function buildKnownAliCategoryId(raw: string, canonical: string): string {
     pets: "0",
     travel: "0",
     tools: "0",
-    accessories: "0"
+    accessories: "0",
   };
 
   return known[canonical] || known[raw] || "";
@@ -594,14 +605,16 @@ function buildKnownAliCategoryId(raw: string, canonical: string): string {
 function expandKeyword(keyword: string): string[] {
   const text = normalizeText(keyword);
   if (!text) return [];
+
   const words = text.split(" ").filter(Boolean);
   const variants = new Set<string>();
 
   variants.add(text);
 
   if (words.length > 1) {
-    variants.add(words.slice().reverse().join(" "));
-    variants.add(words.slice(0, Math.min(3, words.length)).join(" "));
+    variants.add(words.slice(0, 2).join(" "));
+    variants.add(words.slice(0, 3).join(" "));
+    variants.add(words.slice(-2).join(" "));
   }
 
   if (words.length === 1) {
@@ -627,23 +640,48 @@ function expandKeyword(keyword: string): string[] {
     variants.add("smartphone accessory");
   }
 
+  if (text.includes("necklace") || text.includes("ring") || text.includes("bracelet") || text.includes("earring")) {
+    variants.add("jewelry");
+    variants.add("fashion jewelry");
+    variants.add("women jewelry");
+    variants.add("gift jewelry");
+  }
+
+  if (text.includes("home") || text.includes("kitchen")) {
+    variants.add("home decor");
+    variants.add("kitchen tools");
+    variants.add("home appliance");
+  }
+
+  if (text.includes("beauty") || text.includes("skincare") || text.includes("makeup")) {
+    variants.add("skincare");
+    variants.add("beauty tools");
+    variants.add("makeup brush");
+    variants.add("face mask");
+  }
+
   return [...variants];
 }
 
 function buildCandidateKeywords(plan: QueryPlan): string[] {
   const base = normalizeText(plan.keywordCandidates[0] || "");
   const profile = buildProfile(plan.aliCategoryId);
+
   const sectionPools: Record<SectionKind, string[]> = {
     search: [],
     browse: BROWSE_POOLS,
     trending: TRENDING_POOLS,
     deals: DEALS_POOLS,
     "new-arrivals": NEW_ARRIVALS_POOLS,
-    budget: BUDGET_POOLS
+    budget: BUDGET_POOLS,
   };
 
   const candidates: string[] = [];
-  if (base) candidates.push(...expandKeyword(base));
+
+  if (base) {
+    candidates.push(...expandKeyword(base));
+  }
+
   candidates.push(...plan.keywordCandidates.slice(1).flatMap(expandKeyword));
   candidates.push(...profile.keywords);
   candidates.push(...sectionPools[plan.section]);
@@ -703,9 +741,13 @@ function buildCandidateKeywords(plan: QueryPlan): string[] {
     );
   }
 
-  if (!candidates.length) candidates.push("smart gadget", "fashion item", "home product");
-
-  return uniqueStrings(candidates);
+  const unique = uniqueStrings(candidates);
+  if (!unique.length) return ["smart gadget", "fashion item", "home product"];
+  if (base) {
+    const rest = unique.filter((k) => k !== base);
+    return [base, ...rotateBySeed(rest, plan.seed)];
+  }
+  return rotateBySeed(unique, plan.seed);
 }
 
 function buildRequestCacheKey(method: string, params: Record<string, string>): string {
@@ -726,8 +768,9 @@ async function callApi(method: string, methodParams: Record<string, string>): Pr
     tracking_id: AFFILIATE_ID,
     target_currency: "USD",
     target_language: "EN",
-    ...methodParams
+    ...methodParams,
   };
+
   params.sign = sign(params);
 
   const body = new URLSearchParams(params).toString();
@@ -737,10 +780,11 @@ async function callApi(method: string, methodParams: Record<string, string>): Pr
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded;charset=utf-8" },
       body,
-      signal: createTimeoutSignal(12000)
+      signal: createTimeoutSignal(12000),
     });
 
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
     const data = await res.json();
 
     if (data && typeof data === "object" && "error_response" in (data as Record<string, unknown>)) {
@@ -789,6 +833,7 @@ function injectTrustLayer(product: AliProduct): AliProduct {
   }
 
   product.trust_badges = badges.length > 0 ? badges : ["Verified Merchant"];
+
   if (!product.shop_name || product.shop_name.trim() === "") {
     product.shop_name = "Global Premium Factory Store";
   }
@@ -868,7 +913,7 @@ function parseProduct(raw: Record<string, any>): AliProduct {
     hot_product_commission_rate: raw.hot_product_commission_rate
       ? String(raw.hot_product_commission_rate)
       : undefined,
-    sku_id: raw.sku_id ? String(raw.sku_id) : undefined
+    sku_id: raw.sku_id ? String(raw.sku_id) : undefined,
   };
 
   if (!parsed.discount || parsed.discount === "0") {
@@ -886,25 +931,45 @@ function parseProduct(raw: Record<string, any>): AliProduct {
   return injectTrustLayer(parsed);
 }
 
-function ensureArray<T>(value: T | T[] | undefined | null): T[] {
-  if (!value) return [];
-  return Array.isArray(value) ? value : [value];
-}
+function scoreProduct(product: AliProduct, primaryQuery: string, seed: number): number {
+  const title = normalizeText(product.product_title || "");
+  const query = normalizeText(primaryQuery || "");
+  const qTokens = query.split(" ").filter(Boolean);
+  const tTokens = title.split(" ").filter(Boolean);
 
-function rankProduct(product: AliProduct): number {
-  const rating = parseFloat(product.evaluate_rate || "0");
-  const volume = Number(product.lastest_volume || 0);
-  const sale = parseFloat(product.sale_price || product.app_sale_price || "0");
-  const orig = parseFloat(product.original_price || "0");
-  const discount = parseInt(product.discount || "0", 10) || computeDiscount(orig, sale);
-  const seed = hashInt(product.product_id || product.shop_id || product.product_title) % 1000;
-  return rating * 120 + Math.log10(volume + 1) * 25 + discount * 0.75 + seed / 1000;
+  let score =
+    parseFloat(product.evaluate_rate || "0") * 120 +
+    Math.log10((Number(product.lastest_volume || 0) || 0) + 1) * 28 +
+    (parseInt(product.discount || "0", 10) || 0) * 0.8 +
+    (seed % 97) / 100;
+
+  if (query && title.includes(query)) score += 280;
+
+  if (qTokens.length) {
+    let matches = 0;
+    for (const token of qTokens) {
+      if (token.length < 2) continue;
+      if (title.includes(token)) matches += 1;
+    }
+    score += matches * 70;
+
+    const titleSet = new Set(tTokens);
+    const overlap = qTokens.filter((token) => titleSet.has(token)).length;
+    score += overlap * 55;
+  }
+
+  if (product.is_top_choice) score += 60;
+  if (product.is_verified_seller) score += 25;
+  if (product.price_drop_alert) score += 20;
+
+  return score;
 }
 
 function filterByPrice(products: AliProduct[], minPrice?: string, maxPrice?: string): AliProduct[] {
   if (!minPrice && !maxPrice) return products;
   const min = minPrice ? parseFloat(minPrice) : 0;
   const max = maxPrice ? parseFloat(maxPrice) : Infinity;
+
   return products.filter((p) => {
     const price = parseFloat(p.sale_price || p.app_sale_price || "0");
     return price >= min && price <= max;
@@ -916,7 +981,7 @@ function enforceDiversity(products: AliProduct[], limit: number): AliProduct[] {
   const sellerCounts = new Map<string, number>();
   const categoryCounts = new Map<string, number>();
 
-  const sorted = [...products].sort((a, b) => rankProduct(b) - rankProduct(a));
+  const sorted = [...products];
   const result: AliProduct[] = [];
 
   for (const product of sorted) {
@@ -961,7 +1026,7 @@ async function syncProductsToCache(products: AliProduct[]) {
       source_payload: p as any,
       category_slug: p.first_level_category_id || "",
       source: "aliexpress",
-      updated_at: new Date().toISOString()
+      updated_at: new Date().toISOString(),
     }));
 
     await (supabase.from("cached_products") as any).upsert(rows, { onConflict: "product_id" });
@@ -979,9 +1044,7 @@ export async function getCachedProductsByIds(ids: string[]): Promise<AliProduct[
       .in("product_id", ids);
 
     if (!data) return [];
-    return data
-      .map((row: any) => row.source_payload as AliProduct)
-      .filter(Boolean);
+    return data.map((row: any) => row.source_payload as AliProduct).filter(Boolean);
   } catch {
     return [];
   }
@@ -1000,7 +1063,7 @@ async function fetchBatchFromApi(args: {
   const params: Record<string, string> = {
     keywords: args.keyword || "smart gadget",
     page_no: String(Math.max(1, args.page)),
-    page_size: String(Math.min(args.pageSize, 50))
+    page_size: String(Math.min(args.pageSize, MAX_PAGE_SIZE)),
   };
 
   if (args.aliCategoryId) params.category_ids = args.aliCategoryId;
@@ -1029,6 +1092,13 @@ async function fetchBatchFromApi(args: {
 }
 
 async function queryCatalog(plan: QueryPlan): Promise<ProductQueryResult> {
+  const keywordsKey = stableStringify(
+    plan.keywordCandidates.reduce((acc, k, idx) => {
+      acc[String(idx)] = k;
+      return acc;
+    }, {} as Record<string, string>)
+  );
+
   const cacheKey = [
     `catalog:${plan.section}`,
     `page:${plan.page}`,
@@ -1038,20 +1108,15 @@ async function queryCatalog(plan: QueryPlan): Promise<ProductQueryResult> {
     `min:${plan.minPrice || "none"}`,
     `max:${plan.maxPrice || "none"}`,
     `seed:${plan.seed}`,
-    `keywords:${stableStringify(
-      plan.keywordCandidates.reduce((acc, k, idx) => {
-        acc[String(idx)] = k;
-        return acc;
-      }, {} as Record<string, string>)
-    )}`
+    `keywords:${keywordsKey}`,
   ].join("|");
 
   const cached = cache.get<ProductQueryResult>(cacheKey);
   if (cached) return cached;
 
   const candidates = buildCandidateKeywords(plan);
-  const primaryCandidates = candidates.slice(0, plan.section === "search" ? 6 : 5);
-  const fallbackCandidates = candidates.slice(primaryCandidates.length, primaryCandidates.length + 6);
+  const primaryCandidates = candidates.slice(0, plan.section === "search" ? 7 : 5);
+  const fallbackCandidates = candidates.slice(primaryCandidates.length, primaryCandidates.length + 8);
 
   const batchSize = Math.max(8, Math.ceil(plan.pageSize / Math.max(primaryCandidates.length, 1)) + 2);
   const primaryMethod: "search" | "hot" = plan.useHotApiFirst ? "hot" : "search";
@@ -1066,7 +1131,7 @@ async function queryCatalog(plan: QueryPlan): Promise<ProductQueryResult> {
         aliCategoryId: plan.aliCategoryId,
         sort: plan.sort,
         minPrice: plan.minPrice,
-        maxPrice: plan.maxPrice
+        maxPrice: plan.maxPrice,
       })
     )
   );
@@ -1076,7 +1141,7 @@ async function queryCatalog(plan: QueryPlan): Promise<ProductQueryResult> {
 
   merged = filterByPrice(merged, plan.minPrice, plan.maxPrice);
 
-  if (merged.length < plan.pageSize) {
+  if (merged.length < MIN_RESULTS_BEFORE_WIDENING) {
     const secondPass = await Promise.all(
       fallbackCandidates.map((keyword, idx) =>
         fetchBatchFromApi({
@@ -1087,7 +1152,7 @@ async function queryCatalog(plan: QueryPlan): Promise<ProductQueryResult> {
           aliCategoryId: plan.aliCategoryId,
           sort: plan.sort,
           minPrice: plan.minPrice,
-          maxPrice: plan.maxPrice
+          maxPrice: plan.maxPrice,
         })
       )
     );
@@ -1096,9 +1161,9 @@ async function queryCatalog(plan: QueryPlan): Promise<ProductQueryResult> {
     totalCount = Math.max(totalCount, ...secondPass.map((x) => x.totalCount).filter(Boolean), 0);
   }
 
-  if (merged.length < plan.pageSize && plan.section !== "budget") {
+  if (merged.length < MIN_RESULTS_BEFORE_WIDENING && plan.section !== "budget") {
     const widerPass = await Promise.all(
-      BROWSE_POOLS.slice(0, 5).map((keyword, idx) =>
+      rotateBySeed(BROWSE_POOLS, plan.seed).slice(0, 5).map((keyword, idx) =>
         fetchBatchFromApi({
           method: "search",
           keyword,
@@ -1107,7 +1172,7 @@ async function queryCatalog(plan: QueryPlan): Promise<ProductQueryResult> {
           aliCategoryId: plan.aliCategoryId,
           sort: plan.sort,
           minPrice: plan.minPrice,
-          maxPrice: plan.maxPrice
+          maxPrice: plan.maxPrice,
         })
       )
     );
@@ -1117,19 +1182,20 @@ async function queryCatalog(plan: QueryPlan): Promise<ProductQueryResult> {
   }
 
   const unique = enforceDiversity(merged, plan.pageSize);
-  const sorted = unique.sort((a, b) => rankProduct(b) - rankProduct(a));
+  const primaryQuery = plan.keywordCandidates.find(Boolean) || candidates[0] || "";
+  const sorted = unique.sort((a, b) => scoreProduct(b, primaryQuery, plan.seed) - scoreProduct(a, primaryQuery, plan.seed));
   const products = sorted.slice(0, plan.pageSize);
 
   if (!totalCount || totalCount < products.length) {
     totalCount = Math.max(products.length * 100, 10000);
   }
 
-  const totalPage = Math.min(Math.max(1, Math.ceil(totalCount / plan.pageSize)), 2000);
+  const totalPage = Math.min(Math.max(1, Math.ceil(totalCount / plan.pageSize)), MAX_TOTAL_PAGES);
   const result: ProductQueryResult = {
     products,
     totalPage,
     currentPage: plan.page,
-    totalCount
+    totalCount,
   };
 
   cache.set(cacheKey, result, plan.section === "trending" ? THIRTY_MINUTES : ONE_HOUR);
@@ -1143,7 +1209,7 @@ export async function searchProducts(
   options: QueryOptions & { section?: SectionKind } = {}
 ): Promise<ProductQueryResult> {
   const page = Math.max(1, options.page || 1);
-  const pageSize = Math.min(options.pageSize || 50, 50);
+  const pageSize = Math.min(options.pageSize || MAX_PAGE_SIZE, MAX_PAGE_SIZE);
   const normalizedSort = mapSort(options.sort);
   const profile = buildProfile(options.categoryId || "");
   const seed = options.seed || hashInt(`${keywords}|${page}|${profile.canonical}`);
@@ -1153,7 +1219,7 @@ export async function searchProducts(
     baseKeyword,
     ...expandKeyword(baseKeyword),
     ...(profile.keywords || []),
-    ...(options.isGlobalBrowse ? BROWSE_POOLS : [])
+    ...(options.isGlobalBrowse ? BROWSE_POOLS : []),
   ]);
 
   const section: SectionKind = options.section || (options.isGlobalBrowse ? "browse" : "search");
@@ -1177,11 +1243,10 @@ export async function searchProducts(
     minPrice: options.minPrice,
     maxPrice: options.maxPrice,
     seed,
-    useHotApiFirst: section === "trending"
+    useHotApiFirst: section === "trending",
   };
 
-  const result = await queryCatalog(plan);
-  return result;
+  return queryCatalog(plan);
 }
 
 export async function getHotProducts(
@@ -1189,25 +1254,25 @@ export async function getHotProducts(
   options: { page?: number; pageSize?: number; categoryId?: string; seed?: number } = {}
 ): Promise<ProductQueryResult> {
   const page = Math.max(1, options.page || 1);
-  const pageSize = Math.min(options.pageSize || 50, 50);
+  const pageSize = Math.min(options.pageSize || MAX_PAGE_SIZE, MAX_PAGE_SIZE);
   const profile = buildProfile(options.categoryId || "");
   const seed = options.seed || hashInt(`${keywords || "hot"}|${page}|${profile.canonical}`);
 
   const candidates = uniqueStrings([
     ...(keywords ? expandKeyword(keywords) : TRENDING_POOLS),
     ...TRENDING_POOLS,
-    ...(profile.keywords || [])
+    ...(profile.keywords || []),
   ]);
 
   const plan: QueryPlan = {
     section: "trending",
-    keywordCandidates: candidates,
+    keywordCandidates: rotateBySeed(candidates, seed),
     aliCategoryId: profile.aliCategoryId,
     page,
     pageSize,
     sort: "VOLUME_DESC",
     seed,
-    useHotApiFirst: true
+    useHotApiFirst: true,
   };
 
   const result = await queryCatalog(plan);
@@ -1219,7 +1284,7 @@ export async function getHotProducts(
     categoryId: options.categoryId,
     sort: "popular",
     seed,
-    section: "trending"
+    section: "trending",
   });
 }
 
@@ -1259,7 +1324,7 @@ export async function getProductDetail(productId: string): Promise<AliProduct | 
     page: 1,
     pageSize: 10,
     section: "search",
-    seed: hashInt(productId)
+    seed: hashInt(productId),
   });
 
   const found = fallback.products.find((p) => p.product_id === productId) || fallback.products[0] || null;
@@ -1276,7 +1341,7 @@ export async function getBrowseProducts(options: {
   sort?: string;
 } = {}): Promise<ProductQueryResult> {
   const page = Math.max(1, options.page || 1);
-  const pageSize = Math.min(options.pageSize || 50, 50);
+  const pageSize = Math.min(options.pageSize || MAX_PAGE_SIZE, MAX_PAGE_SIZE);
   const seed = options.seed || hashInt(`browse|${page}|${options.categoryId || ""}|${options.keyword || ""}`);
 
   return searchProducts(options.keyword || "", {
@@ -1286,7 +1351,7 @@ export async function getBrowseProducts(options: {
     sort: options.sort || "recommended",
     seed,
     isGlobalBrowse: true,
-    section: "browse"
+    section: "browse",
   });
 }
 
@@ -1297,7 +1362,7 @@ export async function getDealsProducts(options: {
   seed?: number;
 } = {}): Promise<ProductQueryResult> {
   const page = Math.max(1, options.page || 1);
-  const pageSize = Math.min(options.pageSize || 50, 50);
+  const pageSize = Math.min(options.pageSize || MAX_PAGE_SIZE, MAX_PAGE_SIZE);
   const seed = options.seed || hashInt(`deals|${page}|${options.categoryId || ""}`);
 
   return searchProducts("sale clearance discount", {
@@ -1308,7 +1373,7 @@ export async function getDealsProducts(options: {
     seed,
     section: "deals",
     minPrice: "1",
-    maxPrice: "9999"
+    maxPrice: "9999",
   });
 }
 
@@ -1320,7 +1385,7 @@ export async function getUnderFiveShop(options: {
   sort?: string;
 }): Promise<ProductQueryResult> {
   const page = Math.max(1, options.page || 1);
-  const pageSize = Math.min(options.pageSize || 50, 50);
+  const pageSize = Math.min(options.pageSize || MAX_PAGE_SIZE, MAX_PAGE_SIZE);
   const seed = hashInt(`budget|${page}|${options.categoryId || ""}|${options.keyword || ""}`);
 
   const result = await searchProducts(options.keyword || "cheap gadget", {
@@ -1331,7 +1396,7 @@ export async function getUnderFiveShop(options: {
     minPrice: "1.00",
     maxPrice: "5.00",
     seed,
-    section: "budget"
+    section: "budget",
   });
 
   if (result.products.length > 0) return result;
@@ -1344,6 +1409,6 @@ export async function getUnderFiveShop(options: {
     minPrice: "1.00",
     maxPrice: "5.00",
     seed: seed + 13,
-    section: "budget"
+    section: "budget",
   });
 }
