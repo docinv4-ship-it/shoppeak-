@@ -14,8 +14,8 @@ const NAV_LINKS = [
   { href: "/", icon: Home, label: "Home" },
   { href: "/categories", icon: Grid3X3, label: "All Categories" },
   { href: "/browse", icon: Compass, label: "Browse" },
-  { href: "/wishlist", icon: Heart, label: "Shopping Boards" }, 
-  { href: "/cart", icon: ShoppingCart, label: "Your Cart" }, 
+  { href: "/wishlist", icon: Heart, label: "Shopping Boards" }, // Wishlist Integration
+  { href: "/cart", icon: ShoppingCart, label: "Your Cart" }, // Cart Integration
   { href: "/deals", icon: Flame, label: "Hot Deals", highlight: true },
   { href: "/trending", icon: TrendingUp, label: "Trending" },
   { href: "/new-arrivals", icon: Sparkles, label: "New Arrivals" },
@@ -65,7 +65,17 @@ function HeaderSearch() {
   const cartItemsCount = mounted ? cart.reduce((acc, item) => acc + (item.quantity || 1), 0) : 0;
   const wishlistItemsCount = mounted ? wishlistBoards.reduce((acc, b) => acc + b.products.length, 0) : 0;
 
-  // Focus input when search field is opened toggle click
+  // Sync state automatically with URL search params changes (from any search box)
+  useEffect(() => {
+    const currentQ = searchParams.get("q") || "";
+    if (window.location.pathname.includes("/categories/")) {
+      setQuery("");
+    } else {
+      setQuery(currentQ);
+    }
+  }, [searchParams]);
+
+  // Focus input automatically when search field opens
   useEffect(() => {
     if (searchOpen && inputRef.current) {
       setTimeout(() => inputRef.current?.focus(), 100);
@@ -77,7 +87,7 @@ function HeaderSearch() {
     if (query.trim()) {
       router.push(`/search?q=${encodeURIComponent(query.trim())}`);
       setShowSugg(false);
-      setSearchOpen(false); // Close field panel on submit
+      setSearchOpen(false); // Close dynamic header layer on execute
     }
   };
 
@@ -104,12 +114,6 @@ function HeaderSearch() {
 
   useEffect(() => {
     setDrawerOpen(false);
-    const currentQ = searchParams.get("q") || "";
-    if (window.location.pathname.includes("/categories/")) {
-      setQuery("");
-    } else {
-      setQuery(currentQ);
-    }
   }, [searchParams]);
 
   return (
@@ -120,56 +124,58 @@ function HeaderSearch() {
       </div>
 
       {/* Main header */}
-      <header className="bg-orange-50 shadow-md sticky top-0 z-50 w-full overflow-visible">
-        <div className="max-w-7xl mx-auto px-4 py-3">
-          <div className="flex items-center justify-between gap-4 w-full">
+      <header className="bg-orange-500 shadow-md sticky top-0 z-50 w-full overflow-hidden sm:overflow-visible">
+        <div className="max-w-7xl mx-auto px-3 sm:px-4 py-2.5">
+          <div className="flex items-center justify-between gap-2 sm:gap-4 w-full">
 
             {/* Left Box: Menu Button & Logo */}
-            <div className="flex items-center gap-3 flex-shrink-0">
+            <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
+              {/* Hamburger (mobile) */}
               <button
                 onClick={() => setDrawerOpen(true)}
-                className="lg:hidden text-white p-1 rounded hover:bg-orange-600 transition-colors"
+                className="lg:hidden text-white p-1.5 rounded hover:bg-orange-600 transition-colors"
                 aria-label="Open menu"
               >
-                <Menu size={24} />
+                <Menu size={22} />
               </button>
 
+              {/* Logo */}
               <Link href="/" className="flex items-center gap-0.5">
-                <span className="text-white font-black text-2xl tracking-tight">Shop</span>
-                <span className="bg-white text-orange-500 font-black text-2xl px-1.5 rounded tracking-tight shadow-sm ml-0.5">Peak</span>
+                <span className="text-white font-black text-lg sm:text-2xl tracking-tight">Shop</span>
+                <span className="bg-white text-orange-500 font-black text-lg sm:text-2xl px-1.5 rounded tracking-tight shadow-sm">Peak</span>
               </Link>
             </div>
 
-            {/* Right Box: Utility Triggers (Includes Toggle Search Icon) */}
-            <div className="flex items-center gap-4 text-white font-bold text-sm flex-shrink-0 ml-auto">
-              
-              {/* 🔎 SEARCH ICON INTERACTION TRIGGER */}
-              <button 
+            {/* Right Box: Action Elements & Toggle Only 🔎 Icon */}
+            <div className="flex items-center gap-3 md:gap-4 text-white font-bold text-sm flex-shrink-0 ml-auto">
+
+              {/* DYNAMIC INTERACTIVE SEARCH ICON TRIGGER */}
+              <button
                 onClick={() => setSearchOpen(!searchOpen)}
-                className="p-2 text-white hover:bg-orange-600 rounded-full transition-colors relative"
-                aria-label="Toggle search"
+                className="p-2 text-white hover:bg-orange-600 rounded-full transition-colors flex items-center justify-center shrink-0"
+                aria-label="Toggle search box"
               >
-                {searchOpen ? <X size={24} className="text-white" /> : <Search size={24} className="text-white" />}
+                {searchOpen ? <X size={22} className="text-white" /> : <Search size={22} className="text-white" />}
               </button>
 
               {/* Dynamic Wishlist Module */}
               <Link href="/wishlist" className="relative group p-1.5 flex flex-col items-center justify-center hover:text-yellow-100 transition-colors">
-                <Heart size={22} className="group-hover:scale-105 transition-transform" />
+                <Heart size={21} className="group-hover:scale-105 transition-transform" />
                 <span className="text-[10px] font-bold mt-0.5 hidden md:block">Wishlist</span>
                 {wishlistItemsCount > 0 && (
-                  <span className="absolute -top-1 -right-1 bg-white text-orange-600 text-[10px] font-black w-4 h-4 rounded-full flex items-center justify-center border border-orange-500">
+                  <span className="absolute -top-1 -right-1 bg-white text-orange-600 text-[10px] font-black w-4 h-4 rounded-full flex items-center justify-center border border-orange-500 animate-fadeIn">
                     {wishlistItemsCount}
                   </span>
                 )}
               </Link>
 
               {/* Dynamic Checkout Cart Module */}
-              <Link href="/cart" className="relative group p-1.5 flex items-center justify-center bg-orange-600/50 hover:bg-orange-700 border border-orange-400/20 px-3 py-1.5 rounded-xl transition-all">
+              <Link href="/cart" className="relative group p-1.5 flex flex-col items-center justify-center bg-orange-600/50 hover:bg-orange-700 border border-orange-400/20 px-3 py-1 rounded-xl transition-all">
                 <div className="flex items-center gap-2">
                   <div className="relative">
                     <ShoppingCart size={20} className="group-hover:scale-105 transition-transform" />
                     {cartItemsCount > 0 && (
-                      <span className="absolute -top-2.5 -right-2.5 bg-yellow-300 text-black text-[9px] font-black w-4.5 h-4.5 rounded-full flex items-center justify-center border border-orange-500">
+                      <span className="absolute -top-2.5 -right-2.5 bg-yellow-300 text-black text-[9px] font-black w-4.5 h-4.5 rounded-full flex items-center justify-center border border-orange-500 animate-pulse">
                         {cartItemsCount}
                       </span>
                     )}
@@ -181,42 +187,43 @@ function HeaderSearch() {
             </div>
           </div>
 
-          {/* DYNAMIC EXPANDABLE SEARCH PANEL CONTAINER LAYER */}
+          {/* DYNAMIC EXPANDABLE LAYER FIELD CONTAINER */}
           {searchOpen && (
-            <div className="w-full pt-3 pb-1 animate-fadeIn">
-              <form onSubmit={handleSearch} className="w-full relative max-w-3xl mx-auto">
-                <div className="flex w-full h-11 items-center bg-white dark:bg-white rounded-full overflow-hidden shadow-xl border-2 border-orange-700">
+            <div className="w-full pt-2 pb-1">
+              <form onSubmit={handleSearch} className="w-full relative max-w-2xl mx-auto min-w-0">
+                <div className="flex w-full items-center bg-white dark:bg-white rounded-full overflow-hidden border-0 shadow-sm focus-within:ring-2 focus-within:ring-orange-700 transition-all">
                   <input
                     ref={inputRef}
                     type="text"
                     value={query}
                     onChange={e => handleInputChange(e.target.value)}
                     onFocus={() => query.length >= 2 && setShowSugg(true)}
-                    placeholder="Search over millions of high-quality products..."
-                    autoComplete="off"
-                    className="w-full h-full px-5 text-base font-bold outline-none border-0 text-black dark:text-black bg-white dark:bg-white placeholder-gray-400 focus:ring-0 focus:outline-none"
-                    style={{ color: '#000000', backgroundColor: '#ffffff', opacity: '1', WebkitTextFillColor: '#000000' }}
+                    placeholder="Search products..."
+                    className="w-full px-4 py-2 text-sm outline-none border-0 text-gray-950 bg-white dark:text-gray-950 dark:bg-white min-w-0 placeholder-gray-400 focus:ring-0 focus:outline-none"
+                    style={{ color: '#030712', backgroundColor: '#ffffff' }}
                   />
                   {query.trim() && (
                     <button
                       type="button"
-                      onClick={() => { setQuery(""); setShowSugg(false); }}
-                      className="px-3 text-gray-400 hover:text-gray-600 transition-colors shrink-0"
+                      onClick={() => {
+                        setQuery("");
+                        setShowSugg(false);
+                      }}
+                      className="px-2 text-gray-400 hover:text-gray-600 transition-colors shrink-0"
                     >
-                      <X size={18} />
+                      <X size={16} />
                     </button>
                   )}
                   <button 
                     type="submit" 
-                    className="bg-orange-700 hover:bg-orange-800 text-white h-full px-6 transition-colors flex-shrink-0 flex items-center justify-center rounded-r-full"
+                    className="bg-orange-700 hover:bg-orange-800 text-white h-9 px-4 sm:px-6 transition-colors flex-shrink-0 flex items-center justify-center rounded-r-full"
                   >
-                    <Search size={18} className="text-white" />
+                    <Search size={16} className="sm:w-[18px] sm:h-[18px]" />
                   </button>
                 </div>
 
-                {/* Live Floating Dropdown Auto Suggestions Container */}
                 {showSugg && suggestions.length > 0 && (
-                  <div className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-white shadow-2xl rounded-2xl border border-gray-100 overflow-hidden z-[999] max-h-64 overflow-y-auto">
+                  <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-white shadow-xl rounded-xl border border-gray-100 overflow-hidden z-50 max-h-60 overflow-y-auto">
                     {suggestions.map(s => (
                       <button
                         key={s}
@@ -227,9 +234,9 @@ function HeaderSearch() {
                           setSearchOpen(false);
                           router.push(`/search?q=${encodeURIComponent(s)}`); 
                         }}
-                        className="flex items-center gap-3 w-full px-5 py-3 text-sm font-semibold text-gray-900 dark:text-gray-900 hover:bg-orange-50 transition-colors text-left"
+                        className="flex items-center gap-2 w-full px-4 py-2.5 text-sm text-gray-800 dark:text-gray-800 hover:bg-orange-50 dark:hover:bg-orange-50 text-left transition-colors"
                       >
-                        <Search size={14} className="text-gray-400 shrink-0" />
+                        <Search size={13} className="text-gray-400 shrink-0" />
                         {s}
                       </button>
                     ))}
@@ -240,7 +247,7 @@ function HeaderSearch() {
           )}
 
           {/* Desktop category nav strip */}
-          <nav className="hidden sm:flex items-center gap-0.5 mt-2.5 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
+          <nav className="hidden sm:flex items-center gap-0.5 mt-2 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
             <Link href="/categories" className="text-white text-xs whitespace-nowrap px-2.5 py-1 rounded-full hover:bg-orange-600 transition-colors font-semibold flex-shrink-0">
               ☰ All
             </Link>
@@ -256,6 +263,9 @@ function HeaderSearch() {
             <Link href="/trending" className="text-yellow-200 text-xs whitespace-nowrap px-2.5 py-1 rounded-full hover:bg-orange-600 transition-colors font-bold flex-shrink-0 ml-1">
               📈 Trending
             </Link>
+            <Link href="/deals" className="text-yellow-200 text-xs whitespace-nowrap px-2.5 py-1 rounded-full hover:bg-orange-600 transition-colors font-bold flex-shrink-0 ml-auto">
+              🔥 Flash Sale
+            </Link>
           </nav>
         </div>
       </header>
@@ -270,7 +280,7 @@ function HeaderSearch() {
             <div className="bg-orange-500 px-4 py-4 flex items-center justify-between flex-shrink-0">
               <Link href="/" onClick={() => setDrawerOpen(false)} className="flex items-center gap-0.5">
                 <span className="text-white font-black text-xl">Shop</span>
-                <span className="bg-white text-orange-500 font-black text-xl px-1 rounded ml-0.5">Peak</span>
+                <span className="bg-white text-orange-500 font-black text-xl px-1 rounded">Peak</span>
               </Link>
               <button onClick={() => setDrawerOpen(false)} className="text-white hover:bg-orange-600 p-1.5 rounded-lg">
                 <X size={20} />
@@ -339,6 +349,21 @@ function HeaderSearch() {
                   <ChevronRight size={13} className="ml-auto text-gray-300" />
                 </Link>
               ))}
+            </div>
+
+            {/* Bottom links */}
+            <div className="px-4 py-4 border-t border-gray-100 bg-gray-50 flex-shrink-0">
+              <div className="flex flex-wrap gap-2 text-xs text-gray-500">
+                <Link href="/about" onClick={() => setDrawerOpen(false)} className="hover:text-orange-500">About</Link>
+                <span>·</span>
+                <Link href="/contact-us" onClick={() => setDrawerOpen(false)} className="hover:text-orange-500">Contact</Link>
+                <span>·</span>
+                <Link href="/support" onClick={() => setDrawerOpen(false)} className="hover:text-orange-500">Support</Link>
+                <span>·</span>
+                <Link href="/privacy" onClick={() => setDrawerOpen(false)} className="hover:text-orange-500">Privacy</Link>
+                <span>·</span>
+                <Link href="/terms" onClick={() => setDrawerOpen(false)} className="hover:text-orange-500">Terms</Link>
+              </div>
             </div>
           </div>
         </div>
