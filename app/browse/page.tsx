@@ -6,7 +6,7 @@ import ProductGrid from "@/components/ProductGrid";
 import Pagination from "@/components/Pagination";
 import { AliProduct } from "@/lib/aliexpress";
 import { CATEGORIES } from "@/data/categories";
-import { Search, SlidersHorizontal, X } from "lucide-react";
+import { SlidersHorizontal, X } from "lucide-react";
 
 const SORT_OPTIONS = [
   { label: "Recommended", value: "" },
@@ -42,9 +42,6 @@ const BROWSE_KEYWORDS = [
   "daily deals trending",
   "customer favorite picks",
 ];
-
-const SEARCH_SYNC_EVENT = "shoppeak-search-sync";
-const SEARCH_STORAGE_KEY = "shoppeak:last-search";
 
 function normalizeText(value: string) {
   return value
@@ -88,10 +85,10 @@ function BrowsePageContent() {
   const [totalPages, setTotalPages] = useState(200);
   const [totalCount, setTotalCount] = useState(10000);
   const [showFilters, setShowFilters] = useState(false);
-  const [localInputQuery, setLocalInputQuery] = useState(searchQuery);
 
   const seedRef = useRef<number>(0);
-  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const requestIdRef = useRef(0);
+  const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     const key = "sp_browse_seed";
@@ -101,32 +98,6 @@ function BrowsePageContent() {
       sessionStorage.setItem(key, String(s));
     }
     seedRef.current = s;
-  }, []);
-
-  useEffect(() => {
-    setLocalInputQuery(searchQuery);
-  }, [searchQuery]);
-
-  useEffect(() => {
-    const onExternalSearch = (event: Event) => {
-      const custom = event as CustomEvent<{ query?: string }>;
-      const nextQuery = custom.detail?.query ?? "";
-      setLocalInputQuery(nextQuery);
-    };
-
-    const onStorage = (event: StorageEvent) => {
-      if (event.key === SEARCH_STORAGE_KEY) {
-        setLocalInputQuery(event.newValue || "");
-      }
-    };
-
-    window.addEventListener(SEARCH_SYNC_EVENT, onExternalSearch as EventListener);
-    window.addEventListener("storage", onStorage);
-
-    return () => {
-      window.removeEventListener(SEARCH_SYNC_EVENT, onExternalSearch as EventListener);
-      window.removeEventListener("storage", onStorage);
-    };
   }, []);
 
   const updateUrl = useCallback(
@@ -166,64 +137,20 @@ function BrowsePageContent() {
     [router, pathname]
   );
 
-  useEffect(() => {
-    const currentUrlQuery = searchParams.get("q") || "";
-
-    if (localInputQuery === currentUrlQuery) return;
-
-    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
-
-    debounceTimerRef.current = setTimeout(() => {
-      updateUrl({ q: localInputQuery, page: 1 });
-    }, 180);
-
-    return () => {
-      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
-    };
-  }, [localInputQuery, searchParams, updateUrl]);
-
-  const handleLiveTypingSearch = (incomingText: string) => {
-    setLocalInputQuery(incomingText);
-
-    try {
-      window.localStorage.setItem(SEARCH_STORAGE_KEY, incomingText.trim());
-    } catch {
-      // ignore storage failures
-    }
-
-    window.dispatchEvent(
-      new CustomEvent(SEARCH_SYNC_EVENT, {
-        detail: { query: incomingText.trim() },
-      })
-    );
-  };
-
-  const handleInstantClear = () => {
-    setLocalInputQuery("");
-    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
-
-    try {
-      window.localStorage.setItem(SEARCH_STORAGE_KEY, "");
-    } catch {
-      // ignore storage failures
-    }
-
-    window.dispatchEvent(
-      new CustomEvent(SEARCH_SYNC_EVENT, {
-        detail: { query: "" },
-      })
-    );
-
-    updateUrl({ q: "", page: 1 });
-  };
-
   const fetchProducts = useCallback(async () => {
+    requestIdRef.current += 1;
+    const requestId = requestIdRef.current;
+
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+
     setLoading(true);
 
     try {
       const catData = resolveCategory(selectedCat) as any;
       const catKeywords: string[] = Array.isArray(catData?.keywords) ? catData.keywords : [];
-      const baseQuery = localInputQuery.trim();
+      const baseQuery = searchQuery.trim();
 
       const keyword =
         baseQuery ||
@@ -242,8 +169,13 @@ function BrowsePageContent() {
       if (minPrice) params.set("minPrice", minPrice);
       if (maxPrice) params.set("maxPrice", maxPrice);
 
-      const res = await fetch(`/api/products/search?${params}`);
+      const res = await fetch(`/api/products/search?${params}`, {
+        signal: controller.signal,
+      });
+
       const data = await res.json();
+
+      if (requestId !== requestIdRef.current) return;
 
       setProducts(Array.isArray(data.products) ? data.products : []);
       setTotalPages(Math.min(Number(data.totalPage || 200), 200));
@@ -254,18 +186,28 @@ function BrowsePageContent() {
               Math.min(Number(data.totalPage || 200), 200))
         )
       );
-    } catch (error) {
-      console.error("Fetch Execution Interrupted:", error);
-      setProducts([]);
+    } catch (error: any) {
+      if (error?.name !== "AbortError") {
+        console.error("Fetch Execution Interrupted:", error);
+        setProducts([]);
+      }
     } finally {
-      setLoading(false);
+      if (requestId === requestIdRef.current) {
+        setLoading(false);
+      }
     }
-  }, [selectedCat, sort, minPrice, maxPrice, localInputQuery, page]);
+  }, [selectedCat, sort, minPrice, maxPrice, searchQuery, page]);
 
   useEffect(() => {
     fetchProducts();
     window.scrollTo({ top: 0, behavior: "smooth" });
   }, [fetchProducts]);
+
+  useEffect(() => {
+    return () => {
+      abortRef.current?.abort();
+    };
+  }, []);
 
   const optimizedProcessedProducts = useMemo(() => {
     if (!products || products.length === 0) return [];
@@ -286,7 +228,7 @@ function BrowsePageContent() {
   }, [products, sort]);
 
   const currentCategory = resolveCategory(selectedCat) as any;
-  const displayTitle = localInputQuery.trim() || currentCategory?.name || "All Products";
+  const displayTitle = searchQuery.trim() || currentCategory?.name || "All Products";
 
   const handleCategoryClick = (catId: string) => {
     const nextCat = selectedCat === catId ? "" : catId;
@@ -303,23 +245,7 @@ function BrowsePageContent() {
   };
 
   const clearFilters = () => {
-    setLocalInputQuery("");
     setShowFilters(false);
-
-    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
-
-    try {
-      window.localStorage.setItem(SEARCH_STORAGE_KEY, "");
-    } catch {
-      // ignore
-    }
-
-    window.dispatchEvent(
-      new CustomEvent(SEARCH_SYNC_EVENT, {
-        detail: { query: "" },
-      })
-    );
-
     router.replace(pathname, { scroll: false });
   };
 
@@ -359,31 +285,6 @@ function BrowsePageContent() {
       </div>
 
       <div className="max-w-7xl mx-auto px-3 py-4">
-        <div className="mb-4">
-          <div className="flex items-center gap-2">
-            <div className="flex-1 bg-white border border-gray-200 rounded-2xl shadow-sm flex items-center overflow-hidden">
-              <Search size={18} className="ml-4 text-gray-400 shrink-0" />
-              <input
-                value={localInputQuery}
-                onChange={(e) => handleLiveTypingSearch(e.target.value)}
-                placeholder="Search products, brands, categories..."
-                className="w-full px-3 py-3 text-sm sm:text-base outline-none text-gray-900 placeholder:text-gray-400 bg-transparent"
-                autoComplete="off"
-              />
-              {localInputQuery.trim() && (
-                <button
-                  type="button"
-                  onClick={handleInstantClear}
-                  className="px-3 text-gray-400 hover:text-gray-700 transition-colors"
-                  aria-label="Clear search"
-                >
-                  <X size={18} />
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-
         <div className="flex items-center justify-between mb-4 gap-2">
           <div className="flex items-center gap-2">
             <button
@@ -456,7 +357,7 @@ function BrowsePageContent() {
           <div className="text-sm font-semibold text-gray-700">
             Results for <span className="text-orange-500">“{displayTitle}”</span>
           </div>
-          {(localInputQuery || selectedCat || sort || minPrice || maxPrice) && (
+          {(searchQuery || selectedCat || sort || minPrice || maxPrice) && (
             <button
               onClick={clearFilters}
               className="text-xs font-semibold text-gray-500 hover:text-orange-500 transition-colors"
