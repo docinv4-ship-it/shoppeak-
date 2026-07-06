@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import ProductGrid from "@/components/ProductGrid";
 import Pagination from "@/components/Pagination";
 import { AliProduct } from "@/lib/aliexpress";
@@ -112,11 +112,32 @@ function resolveCategory(input: string) {
   );
 }
 
+function readParamsFromLocation() {
+  if (typeof window === "undefined") {
+    return {
+      q: "",
+      cat: "",
+      sort: "",
+      minPrice: "",
+      maxPrice: "",
+      page: 1,
+    };
+  }
+
+  const params = new URLSearchParams(window.location.search);
+  return {
+    q: params.get("q") || "",
+    cat: params.get("cat") || "",
+    sort: params.get("sort") || "",
+    minPrice: params.get("minPrice") || "",
+    maxPrice: params.get("maxPrice") || "",
+    page: Math.max(1, parseInt(params.get("page") || "1", 10) || 1),
+  };
+}
+
 export default function BrowsePage() {
   const router = useRouter();
   const pathname = usePathname();
-  const searchParams = useSearchParams();
-  const searchParamsString = searchParams.toString();
 
   const [products, setProducts] = useState<AliProduct[]>([]);
   const [loading, setLoading] = useState(true);
@@ -143,20 +164,15 @@ export default function BrowsePage() {
   }, []);
 
   useEffect(() => {
-    const q = searchParams.get("q") || "";
-    const cat = searchParams.get("cat") || "";
-    const s = searchParams.get("sort") || "";
-    const min = searchParams.get("minPrice") || "";
-    const max = searchParams.get("maxPrice") || "";
-    const p = Math.max(1, parseInt(searchParams.get("page") || "1", 10) || 1);
+    const initial = readParamsFromLocation();
 
-    setSearchQuery(q);
-    setDraftSearch(q);
-    setSelectedCat(cat);
-    setSort(s);
-    setPriceRange({ min, max });
-    setPage(p);
-  }, [searchParamsString, searchParams]);
+    setSearchQuery(initial.q);
+    setDraftSearch(initial.q);
+    setSelectedCat(initial.cat);
+    setSort(initial.sort);
+    setPriceRange({ min: initial.minPrice, max: initial.maxPrice });
+    setPage(initial.page);
+  }, []);
 
   const updateUrl = useCallback(
     (next: {
@@ -167,11 +183,14 @@ export default function BrowsePage() {
       maxPrice?: string;
       page?: number;
     }) => {
-      const params = new URLSearchParams(searchParamsString);
+      const current =
+        typeof window !== "undefined"
+          ? new URLSearchParams(window.location.search)
+          : new URLSearchParams();
 
       const setParam = (key: string, value?: string) => {
-        if (value && value.trim() !== "") params.set(key, value);
-        else params.delete(key);
+        if (value && value.trim() !== "") current.set(key, value);
+        else current.delete(key);
       };
 
       setParam("q", next.q ?? searchQuery);
@@ -181,12 +200,13 @@ export default function BrowsePage() {
       setParam("maxPrice", next.maxPrice ?? priceRange.max);
 
       const nextPage = next.page ?? page;
-      if (nextPage > 1) params.set("page", String(nextPage));
-      else params.delete("page");
+      if (nextPage > 1) current.set("page", String(nextPage));
+      else current.delete("page");
 
-      router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+      const queryString = current.toString();
+      router.replace(queryString ? `${pathname}?${queryString}` : pathname, { scroll: false });
     },
-    [router, pathname, searchParamsString, searchQuery, selectedCat, sort, priceRange.min, priceRange.max, page]
+    [router, pathname, searchQuery, selectedCat, sort, priceRange.min, priceRange.max, page]
   );
 
   const fetchProducts = useCallback(
@@ -223,7 +243,8 @@ export default function BrowsePage() {
         setTotalCount(
           Number(
             data.totalCount ||
-              ((Array.isArray(data.products) ? data.products.length : 0) * Math.min(Number(data.totalPage || 200), 200))
+              ((Array.isArray(data.products) ? data.products.length : 0) *
+                Math.min(Number(data.totalPage || 200), 200))
           )
         );
       } catch (error) {
@@ -264,10 +285,7 @@ export default function BrowsePage() {
   }, [products, sort]);
 
   const currentCategory = resolveCategory(selectedCat) as any;
-  const displayTitle =
-    searchQuery.trim() ||
-    currentCategory?.name ||
-    "All Products";
+  const displayTitle = searchQuery.trim() || currentCategory?.name || "All Products";
 
   const onSubmitSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -474,7 +492,12 @@ export default function BrowsePage() {
           )}
         </div>
 
-        <ProductGrid products={optimizedProcessedProducts} cols={5} loading={loading} skeletonCount={50} />
+        <ProductGrid
+          products={optimizedProcessedProducts}
+          cols={5}
+          loading={loading}
+          skeletonCount={50}
+        />
 
         {!loading && optimizedProcessedProducts.length > 0 && (
           <Pagination
