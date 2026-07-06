@@ -28,7 +28,6 @@ import {
   Package,
   ShoppingCart,
   Heart,
-  TrendingDown,
 } from "lucide-react";
 import { CATEGORIES } from "@/data/categories";
 
@@ -82,12 +81,15 @@ const SEARCH_STORAGE_KEY = "shoppeak:last-search";
 
 function broadcastSearchQuery(value: string) {
   if (typeof window === "undefined") return;
+
   const cleanValue = value.trim();
+
   try {
     window.localStorage.setItem(SEARCH_STORAGE_KEY, cleanValue);
   } catch {
     // ignore storage failures
   }
+
   window.dispatchEvent(
     new CustomEvent(SEARCH_SYNC_EVENT, {
       detail: { query: cleanValue },
@@ -104,7 +106,6 @@ function HeaderSearch() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [showSugg, setShowSugg] = useState(false);
   const [mounted, setMounted] = useState(false);
-  const [activeIdx, setActiveIdx] = useState(-1);
 
   const inputRef = useRef<HTMLInputElement>(null);
   const searchWrapRef = useRef<HTMLFormElement>(null);
@@ -124,18 +125,15 @@ function HeaderSearch() {
     ? wishlistBoards.reduce((acc, board) => acc + board.products.length, 0)
     : 0;
 
-  // Active or filtered items list configuration
   const filteredSuggestions = useMemo(() => {
     const cleanQuery = query.trim().toLowerCase();
-    if (!cleanQuery) return SUGGESTIONS.slice(0, 6); // Default popular recommendations if empty
+    if (cleanQuery.length < 2) return [];
 
-    const filtered = SUGGESTIONS.filter((item) => item.toLowerCase().includes(cleanQuery));
-    return filtered.length ? filtered.slice(0, 8) : SUGGESTIONS.slice(0, 6);
-  }, [query]);
+    const filtered = SUGGESTIONS.filter((item) =>
+      item.toLowerCase().includes(cleanQuery)
+    );
 
-  // Reset keyboard cursor position on query modifications
-  useEffect(() => {
-    setActiveIdx(-1);
+    return (filtered.length ? filtered : SUGGESTIONS).slice(0, 6);
   }, [query]);
 
   const syncFromUrl = useCallback(() => {
@@ -165,27 +163,11 @@ function HeaderSearch() {
   const handleInputChange = (val: string) => {
     setQuery(val);
     broadcastSearchQuery(val);
-    setShowSugg(true);
-  };
 
-  // Keyboard navigation control setup (Amazon standard UX)
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (!showSugg || filteredSuggestions.length === 0) return;
-
-    if (e.key === "ArrowDown") {
-      e.preventDefault();
-      setActiveIdx((prev) => (prev + 1) % filteredSuggestions.length);
-    } else if (e.key === "ArrowUp") {
-      e.preventDefault();
-      setActiveIdx((prev) => (prev - 1 + filteredSuggestions.length) % filteredSuggestions.length);
-    } else if (e.key === "Enter") {
-      if (activeIdx >= 0 && activeIdx < filteredSuggestions.length) {
-        e.preventDefault();
-        navigateToBrowse(filteredSuggestions[activeIdx], "push");
-      }
-    } else if (e.key === "Escape") {
+    if (val.trim().length >= 2) {
+      setShowSugg(true);
+    } else {
       setShowSugg(false);
-      inputRef.current?.blur();
     }
   };
 
@@ -226,6 +208,7 @@ function HeaderSearch() {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
+
     setQuery(new URLSearchParams(window.location.search).get("q") || "");
     setDrawerOpen(false);
     setShowSugg(false);
@@ -233,157 +216,102 @@ function HeaderSearch() {
 
   const clearSearch = () => {
     setQuery("");
-    setShowSugg(true);
+    setShowSugg(false);
     broadcastSearchQuery("");
+
     if (pathname.startsWith("/browse")) {
       router.replace("/browse", { scroll: false });
     }
-    inputRef.current?.focus();
-  };
 
-  // Rendering highlights for query matches within recommendation list
-  const renderSuggestionText = (text: string, highlight: string) => {
-    if (!highlight.trim()) return <span className="font-medium text-gray-700">{text}</span>;
-    const cleanHighlight = highlight.replace(/[-\/\\^$*+?.()|[\]{}]/g, "\\$&");
-    const parts = text.split(new RegExp(`(${cleanHighlight})`, "gi"));
-    return (
-      <span className="text-gray-600 text-sm">
-        {parts.map((part, i) =>
-          part.toLowerCase() === highlight.toLowerCase() ? (
-            <strong key={i} className="text-orange-600 font-extrabold">
-              {part}
-            </strong>
-          ) : (
-            <span key={i} className="font-normal text-gray-700">
-              {part}
-            </span>
-          )
-        )}
-      </span>
-    );
+    inputRef.current?.focus();
   };
 
   return (
     <>
-      {/* Dynamic Backdrop Focus Layer */}
-      {showSugg && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-[2px] z-40 transition-all duration-200" />
-      )}
-
-      {/* Top Banner Promo Notice */}
-      <div className="bg-neutral-900 text-white text-[11px] sm:text-xs py-1.5 px-4 text-center font-medium tracking-wide z-50 relative select-none">
+      <div className="bg-orange-700 text-white text-xs py-1 px-4 text-center hidden sm:block font-medium tracking-wide">
         🔥 Flash Sale: Up to 80% OFF — Free Shipping on orders over $10 &nbsp;|&nbsp; 🌍 Ships Worldwide
       </div>
 
-      <header className="bg-orange-500 shadow-md sticky top-0 z-50 transition-all w-full native-header">
-        <div className="max-w-7xl mx-auto px-3 sm:px-6 py-2.5 sm:py-3.5">
-          {/* Main Layout Flex Container: Order mapping prevents duplicate components */}
-          <div className="flex flex-wrap md:flex-nowrap items-center justify-between gap-x-3 gap-y-2.5">
-            
-            {/* Left Block: Branding and Mobile Burger Menu Trigger */}
-            <div className="flex items-center gap-2 flex-shrink-0 order-1">
-              <button
-                onClick={() => setDrawerOpen(true)}
-                className="md:hidden text-white p-2 rounded-xl hover:bg-orange-600 transition-all active:scale-95 flex-shrink-0"
-                aria-label="Open navigation drawer"
-              >
-                <Menu size={23} />
-              </button>
-              <Link href="/" className="flex-shrink-0 flex items-center gap-1">
-                <span className="text-white font-black text-2xl tracking-tighter">Shop</span>
-                <span className="bg-white text-orange-500 font-black text-2xl px-2 py-0.5 rounded-xl tracking-tighter shadow-md">
-                  Peak
-                </span>
-              </Link>
-            </div>
-
-            {/* Middle Responsive Form Block: Automatically adjusts layout flow via CSS orders */}
-            <form
-              ref={searchWrapRef}
-              onSubmit={handleSearch}
-              className="w-full md:w-auto md:flex-1 relative order-3 md:order-2 z-50"
+      <header className="bg-orange-500 shadow-md sticky top-0 z-50 transition-all">
+        <div className="max-w-7xl mx-auto px-3 sm:px-4 py-2.5">
+          <div className="flex items-center gap-2 sm:gap-4">
+            <button
+              onClick={() => setDrawerOpen(true)}
+              className="lg:hidden text-white p-1.5 rounded hover:bg-orange-600 transition-colors flex-shrink-0"
+              aria-label="Open menu"
             >
-              <div className="flex items-center relative w-full bg-white rounded-full shadow-inner border border-transparent focus-within:border-orange-700 focus-within:ring-2 focus-within:ring-orange-200 transition-all duration-150">
-                <input
-                  ref={inputRef}
-                  type="text"
-                  value={query}
-                  onChange={(e) => handleInputChange(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  onFocus={() => setShowSugg(true)}
-                  placeholder="Search products, brands, premium categories..."
-                  className="w-full pl-5 pr-10 py-2.5 md:py-3 text-sm rounded-full outline-none text-gray-800 bg-transparent placeholder-gray-400 font-medium"
-                  autoComplete="off"
-                />
+              <Menu size={22} />
+            </button>
 
-                {query.length > 0 && (
-                  <button
-                    type="button"
-                    onClick={clearSearch}
-                    className="absolute right-14 text-gray-400 hover:text-gray-600 p-1 rounded-full hover:bg-gray-100 transition-colors"
-                    aria-label="Clear structural search input query"
-                  >
-                    <X size={16} />
-                  </button>
-                )}
+            <Link href="/" className="flex-shrink-0 flex items-center gap-0.5 mr-1 sm:mr-2">
+              <span className="text-white font-black text-xl sm:text-2xl tracking-tight">Shop</span>
+              <span className="bg-white text-orange-500 font-black text-xl sm:text-2xl px-1.5 rounded tracking-tight shadow-sm">
+                Peak
+              </span>
+            </Link>
 
+            <form ref={searchWrapRef} onSubmit={handleSearch} className="flex-1 flex relative">
+              <input
+                ref={inputRef}
+                type="text"
+                value={query}
+                onChange={(e) => handleInputChange(e.target.value)}
+                onFocus={() => {
+                  if (query.trim().length >= 2) setShowSugg(true);
+                }}
+                placeholder="Search products, brands, categories..."
+                className="flex-1 px-4 py-2 text-sm rounded-l-full border-0 outline-none text-gray-800 bg-white min-w-0 placeholder-gray-400 focus:ring-2 focus:ring-orange-700 transition-all"
+                autoComplete="off"
+              />
+
+              {query.trim() ? (
                 <button
-                  type="submit"
-                  className="bg-orange-700 hover:bg-orange-800 text-white p-2.5 md:p-3 rounded-full transition-all flex-shrink-0 flex items-center justify-center absolute right-1 shadow-md hover:shadow-lg active:scale-95"
-                  aria-label="Submit automated contextual search query"
+                  type="button"
+                  onClick={clearSearch}
+                  className="bg-white hover:bg-gray-50 text-gray-500 px-2 sm:px-3 transition-colors border-l border-gray-100 flex-shrink-0"
+                  aria-label="Clear search"
                 >
-                  <Search size={18} />
+                  <X size={17} />
                 </button>
-              </div>
+              ) : null}
 
-              {/* Amazon Structural Auto-suggest Dropdown Layer Panel */}
+              <button
+                type="submit"
+                className="bg-orange-700 hover:bg-orange-800 text-white px-4 sm:px-6 rounded-r-full transition-colors flex-shrink-0 flex items-center justify-center"
+                aria-label="Search"
+              >
+                <Search size={18} />
+              </button>
+
               {showSugg && filteredSuggestions.length > 0 && (
-                <div className="absolute top-full left-0 right-0 mt-2 bg-white shadow-2xl rounded-2xl border border-gray-100 overflow-hidden z-[60] animate-fadeIn transition-all max-h-[380px] overflow-y-auto">
-                  <div className="px-4 py-2 bg-gray-50 border-b border-gray-100 flex items-center justify-between">
-                    <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">
-                      {query.trim().length >= 2 ? "Matching Suggestions" : "Trending Popular Searches"}
-                    </span>
-                    <Sparkles size={12} className="text-orange-500 animate-pulse" />
-                  </div>
-                  {filteredSuggestions.map((suggestion, idx) => (
+                <div className="absolute top-full left-0 right-0 mt-1 bg-white shadow-xl rounded-xl border border-gray-100 overflow-hidden z-50">
+                  {filteredSuggestions.map((suggestion) => (
                     <button
                       key={suggestion}
                       type="button"
-                      onMouseEnter={() => setActiveIdx(idx)}
                       onMouseDown={(e) => {
                         e.preventDefault();
                         navigateToBrowse(suggestion, "push");
                       }}
-                      className={`flex items-center gap-3 w-full px-4 py-3 text-left transition-all border-b border-gray-50/50 last:border-0 ${
-                        idx === activeIdx
-                          ? "bg-orange-50 text-orange-700 font-semibold"
-                          : "text-gray-700 hover:bg-gray-50"
-                      }`}
+                      className="flex items-center gap-2 w-full px-4 py-2.5 text-sm text-gray-700 hover:bg-orange-50 hover:text-orange-600 text-left transition-colors"
                     >
-                      <Search
-                        size={14}
-                        className={idx === activeIdx ? "text-orange-600" : "text-gray-400"}
-                      />
-                      <span className="flex-1 truncate">
-                        {renderSuggestionText(suggestion, query)}
-                      </span>
-                      <ChevronRight size={13} className="text-gray-300 ml-auto flex-shrink-0" />
+                      <Search size={13} className="text-gray-400 shrink-0" />
+                      {suggestion}
                     </button>
                   ))}
                 </div>
               )}
             </form>
 
-            {/* Right Action Utility Panel Indicators */}
-            <div className="flex items-center gap-3 sm:gap-4 text-white order-2 md:order-3 flex-shrink-0">
+            <div className="hidden sm:flex items-center gap-4 text-white font-bold text-sm flex-shrink-0">
               <Link
                 href="/wishlist"
-                className="relative group p-2 flex items-center justify-center rounded-xl hover:bg-orange-600 transition-all"
-                aria-label="View user profile wishlist boards"
+                className="relative group p-1.5 flex flex-col items-center justify-center hover:text-yellow-100 transition-colors"
               >
-                <Heart size={22} className="group-hover:scale-105 transition-transform" />
+                <Heart size={21} className="group-hover:scale-105 transition-transform" />
+                <span className="text-[10px] font-bold mt-0.5 hidden md:block">Wishlist</span>
                 {wishlistItemsCount > 0 && (
-                  <span className="absolute -top-0.5 -right-0.5 bg-white text-orange-600 text-[10px] font-black w-4.5 h-4.5 rounded-full flex items-center justify-center border border-orange-500 shadow-md">
+                  <span className="absolute -top-1 -right-1 bg-white text-orange-600 text-[10px] font-black w-4 h-4 rounded-full flex items-center justify-center border border-orange-500 animate-fadeIn">
                     {wishlistItemsCount}
                   </span>
                 )}
@@ -391,37 +319,27 @@ function HeaderSearch() {
 
               <Link
                 href="/cart"
-                className="relative group p-1.5 flex items-center justify-center bg-orange-600 border border-orange-400/20 px-3 py-1.5 rounded-full shadow-sm hover:bg-orange-700 transition-all duration-150"
-                aria-label="View shopping storage cart items"
+                className="relative group p-1.5 flex flex-col items-center justify-center bg-orange-600/50 hover:bg-orange-700 border border-orange-400/20 px-3 py-1 rounded-xl transition-all"
               >
                 <div className="flex items-center gap-2">
                   <div className="relative">
                     <ShoppingCart size={20} className="group-hover:scale-105 transition-transform" />
                     {cartItemsCount > 0 && (
-                      <span className="absolute -top-2.5 -right-2.5 bg-yellow-300 text-neutral-900 text-[9px] font-black w-4.5 h-4.5 rounded-full flex items-center justify-center border border-orange-600 shadow animate-bounce">
+                      <span className="absolute -top-2.5 -right-2.5 bg-yellow-300 text-black text-[9px] font-black w-4.5 h-4.5 rounded-full flex items-center justify-center border border-orange-500 animate-pulse">
                         {cartItemsCount}
                       </span>
                     )}
                   </div>
-                  <span className="text-xs font-bold hidden sm:inline uppercase tracking-wider">Cart</span>
+                  <span className="text-xs font-black hidden md:block uppercase tracking-wider">Cart</span>
                 </div>
               </Link>
             </div>
           </div>
 
-          {/* Sub Categories Dynamic Navbar Horizontal Track list */}
-          <nav
-            className="flex items-center gap-1.5 mt-3 overflow-x-auto select-none pb-0.5"
-            style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
-          >
-            <style jsx global>{`
-              nav::-webkit-scrollbar {
-                display: none;
-              }
-            `}</style>
+          <nav className="hidden sm:flex items-center gap-0.5 mt-2 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
             <Link
               href="/categories"
-              className="text-white text-xs whitespace-nowrap px-3 py-1.5 rounded-full bg-orange-600 hover:bg-orange-700 font-bold flex-shrink-0 shadow-sm"
+              className="text-white text-xs whitespace-nowrap px-2.5 py-1 rounded-full hover:bg-orange-600 transition-colors font-semibold flex-shrink-0"
             >
               ☰ All
             </Link>
@@ -429,81 +347,84 @@ function HeaderSearch() {
               <Link
                 key={cat.id}
                 href={`/categories/${cat.slug}`}
-                className="text-white/95 text-xs whitespace-nowrap px-3 py-1.5 rounded-full hover:bg-orange-600 transition-all flex-shrink-0 font-medium"
+                className="text-white/90 text-xs whitespace-nowrap px-2.5 py-1 rounded-full hover:bg-orange-600 transition-colors flex-shrink-0"
               >
-                <span className="mr-1">{cat.icon}</span>
-                {cat.name}
+                {cat.icon} {cat.name}
               </Link>
             ))}
             <Link
               href="/trending"
-              className="text-yellow-200 text-xs whitespace-nowrap px-3 py-1.5 rounded-full hover:bg-orange-600 transition-colors font-bold flex-shrink-0 ml-1 flex items-center gap-1 bg-orange-600/30"
+              className="text-yellow-200 text-xs whitespace-nowrap px-2.5 py-1 rounded-full hover:bg-orange-600 transition-colors font-bold flex-shrink-0 ml-1"
             >
-              <TrendingUp size={12} /> Trending
+              📈 Trending
             </Link>
             <Link
               href="/deals"
-              className="text-yellow-100 text-xs whitespace-nowrap px-3 py-1.5 rounded-full hover:bg-orange-600 transition-colors font-bold flex-shrink-0 ml-auto flex items-center gap-1 bg-orange-600/40"
+              className="text-yellow-200 text-xs whitespace-nowrap px-2.5 py-1 rounded-full hover:bg-orange-600 transition-colors font-bold flex-shrink-0 ml-auto"
             >
-              <Flame size={12} className="text-yellow-300" /> Flash Sale
+              🔥 Flash Sale
             </Link>
           </nav>
         </div>
       </header>
 
-      {/* Structural Mobile Drawer Component Slider Screen */}
       {drawerOpen && (
-        <div className="fixed inset-0 z-[100] flex animate-fadeIn">
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity" onClick={() => setDrawerOpen(false)} />
-          <div className="relative w-80 max-w-[85vw] bg-white h-full overflow-y-auto shadow-2xl flex flex-col transition-transform duration-200">
-            <div className="bg-orange-500 px-4 py-4 flex items-center justify-between flex-shrink-0 shadow-md">
-              <Link href="/" onClick={() => setDrawerOpen(false)} className="flex items-center gap-1">
-                <span className="text-white font-black text-2xl">Shop</span>
-                <span className="bg-white text-orange-500 font-black text-2xl px-2 py-0.5 rounded-xl shadow-inner">Peak</span>
+        <div className="fixed inset-0 z-[100] flex">
+          <div
+            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+            onClick={() => setDrawerOpen(false)}
+          />
+
+          <div className="relative w-72 max-w-[85vw] bg-white h-full overflow-y-auto shadow-2xl flex flex-col">
+            <div className="bg-orange-500 px-4 py-4 flex items-center justify-between flex-shrink-0">
+              <Link href="/" onClick={() => setDrawerOpen(false)} className="flex items-center gap-0.5">
+                <span className="text-white font-black text-xl">Shop</span>
+                <span className="bg-white text-orange-500 font-black text-xl px-1 rounded">Peak</span>
               </Link>
               <button
                 onClick={() => setDrawerOpen(false)}
-                className="text-white hover:bg-orange-600 p-2 rounded-xl transition-colors"
-                aria-label="Close sidebar panel menu container"
+                className="text-white hover:bg-orange-600 p-1.5 rounded-lg"
               >
                 <X size={20} />
               </button>
             </div>
 
-            <div className="grid grid-cols-2 gap-2.5 p-3 bg-gray-50 border-b border-gray-100">
+            <div className="grid grid-cols-2 gap-2 p-3 bg-gray-50 border-b border-gray-100">
               <Link
                 href="/wishlist"
                 onClick={() => setDrawerOpen(false)}
-                className="flex items-center justify-center gap-2 py-2.5 px-3 bg-white border border-gray-200 rounded-xl text-xs font-bold text-gray-700 shadow-sm hover:bg-gray-50 active:scale-95 transition-transform"
+                className="flex items-center justify-center gap-2 py-2 px-3 bg-white border border-gray-200 rounded-xl text-xs font-bold text-gray-700 shadow-sm"
               >
-                <Heart size={15} className="text-red-500 fill-red-500" /> Boards ({wishlistItemsCount})
+                <Heart size={15} className="text-red-500" />
+                Boards ({wishlistItemsCount})
               </Link>
               <Link
                 href="/cart"
                 onClick={() => setDrawerOpen(false)}
-                className="flex items-center justify-center gap-2 py-2.5 px-3 bg-orange-50 border border-orange-100 rounded-xl text-xs font-bold text-orange-600 shadow-sm hover:bg-orange-100/50 active:scale-95 transition-transform"
+                className="flex items-center justify-center gap-2 py-2 px-3 bg-orange-50 border border-orange-200 rounded-xl text-xs font-bold text-orange-600 shadow-sm"
               >
-                <ShoppingCart size={15} className="text-orange-500" /> Cart ({cartItemsCount})
+                <ShoppingCart size={15} className="text-orange-500" />
+                Cart ({cartItemsCount})
               </Link>
             </div>
 
-            <div className="px-3 py-3 border-b border-gray-100">
+            <div className="px-3 py-2 border-b border-gray-100">
               <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider px-2 mb-2">
-                Navigation Explore
+                Navigation
               </p>
               {NAV_LINKS.map(({ href, icon: Icon, label, highlight }) => (
                 <Link
                   key={href}
                   href={href}
                   onClick={() => setDrawerOpen(false)}
-                  className={`flex items-center gap-3 px-3 py-2.5 rounded-xl mb-1 transition-all ${
+                  className={`flex items-center gap-3 px-3 py-2.5 rounded-lg mb-0.5 transition-colors ${
                     highlight
-                      ? "bg-red-50 text-red-600 hover:bg-red-100/70 font-bold"
+                      ? "bg-red-50 text-red-600 hover:bg-red-100"
                       : "text-gray-700 hover:bg-orange-50 hover:text-orange-600"
                   }`}
                 >
                   <Icon size={17} className={highlight ? "text-red-500" : "text-orange-400"} />
-                  <span className="text-sm font-semibold">{label}</span>
+                  <span className={`text-sm font-medium ${highlight ? "font-bold" : ""}`}>{label}</span>
                   <ChevronRight size={14} className="ml-auto text-gray-300" />
                 </Link>
               ))}
@@ -519,10 +440,10 @@ function HeaderSearch() {
                     key={href}
                     href={href}
                     onClick={() => setDrawerOpen(false)}
-                    className="flex flex-col items-center gap-1.5 p-2.5 bg-gray-50 rounded-xl hover:bg-orange-50 hover:text-orange-600 transition-all text-center group border border-transparent hover:border-orange-100"
+                    className="flex flex-col items-center gap-1 p-2.5 bg-gray-50 rounded-xl hover:bg-orange-50 transition-colors text-center"
                   >
-                    <Icon size={20} className="text-orange-500 group-hover:scale-110 transition-transform" />
-                    <span className="text-[11px] font-semibold text-gray-700 tracking-tight block truncate w-full">{label}</span>
+                    <Icon size={20} className="text-orange-500" />
+                    <span className="text-[11px] font-medium text-gray-700">{label}</span>
                   </Link>
                 ))}
               </div>
@@ -530,33 +451,43 @@ function HeaderSearch() {
 
             <div className="px-3 py-3 flex-1">
               <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider px-2 mb-2">
-                All Direct Categories
+                All Categories
               </p>
               {CATEGORIES.map((cat: any) => (
                 <Link
                   key={cat.id}
                   href={`/categories/${cat.slug}`}
                   onClick={() => setDrawerOpen(false)}
-                  className="flex items-center gap-3 px-3 py-2 rounded-xl mb-1 text-gray-700 hover:bg-orange-50 hover:text-orange-600 transition-all"
+                  className="flex items-center gap-3 px-3 py-2 rounded-lg mb-0.5 text-gray-700 hover:bg-orange-50 hover:text-orange-600 transition-colors"
                 >
                   <span className="text-lg w-6 text-center">{cat.icon}</span>
-                  <span className="text-sm font-medium">{cat.name}</span>
+                  <span className="text-sm">{cat.name}</span>
                   <ChevronRight size={13} className="ml-auto text-gray-300" />
                 </Link>
               ))}
             </div>
 
             <div className="px-4 py-4 border-t border-gray-100 bg-gray-50 flex-shrink-0">
-              <div className="flex flex-wrap gap-x-2.5 gap-y-1.5 text-xs text-gray-500 font-medium justify-center">
-                <Link href="/about" onClick={() => setDrawerOpen(false)} className="hover:text-orange-500">About</Link>
+              <div className="flex flex-wrap gap-2 text-xs text-gray-500">
+                <Link href="/about" onClick={() => setDrawerOpen(false)} className="hover:text-orange-500">
+                  About
+                </Link>
                 <span>·</span>
-                <Link href="/contact-us" onClick={() => setDrawerOpen(false)} className="hover:text-orange-500">Contact</Link>
+                <Link href="/contact-us" onClick={() => setDrawerOpen(false)} className="hover:text-orange-500">
+                  Contact
+                </Link>
                 <span>·</span>
-                <Link href="/support" onClick={() => setDrawerOpen(false)} className="hover:text-orange-500">Support</Link>
+                <Link href="/support" onClick={() => setDrawerOpen(false)} className="hover:text-orange-500">
+                  Support
+                </Link>
                 <span>·</span>
-                <Link href="/privacy" onClick={() => setDrawerOpen(false)} className="hover:text-orange-500">Privacy</Link>
+                <Link href="/privacy" onClick={() => setDrawerOpen(false)} className="hover:text-orange-500">
+                  Privacy
+                </Link>
                 <span>·</span>
-                <Link href="/terms" onClick={() => setDrawerOpen(false)} className="hover:text-orange-500">Terms</Link>
+                <Link href="/terms" onClick={() => setDrawerOpen(false)} className="hover:text-orange-500">
+                  Terms
+                </Link>
               </div>
             </div>
           </div>
@@ -570,9 +501,11 @@ export default function Header() {
   return (
     <Suspense
       fallback={
-        <div className="bg-orange-500 py-3.5 px-4 text-center text-white font-black text-xl tracking-tight select-none flex items-center justify-center gap-1">
-          <span>Shop</span>
-          <span className="bg-white text-orange-500 px-1.5 py-0.5 rounded-lg">Peak</span>
+        <div className="bg-orange-500 h-14 sticky top-0 z-50 flex items-center px-4">
+          <span className="text-white font-black text-xl">Shop</span>
+          <span className="bg-white text-orange-500 font-black text-xl px-1 rounded ml-0.5">
+            Peak
+          </span>
         </div>
       }
     >
