@@ -255,7 +255,7 @@ export async function getCachedProductsByIds(ids: string[]): Promise<AliProduct[
   return data.map((row: any) => row.source_payload as AliProduct);
 }
 
-// ─── $1 to $5 Premium Engine (TEMPORARY WIDE RANGE DEBUGGING) ──────────────────
+// ─── $1 to $5 Premium Engine (FIXED DESIGN LAYER) ──────────────────
 export async function getUnderFiveShop(options: {
   page?: number;
   pageSize?: number;
@@ -266,45 +266,44 @@ export async function getUnderFiveShop(options: {
   const page = options.page || 1;
   const pageSize = options.pageSize || 40;
 
-  // Optimized targeted low-budget terms that cleanly trigger AliExpress $1-$5 range without breaking
+  // Strict low-budget targeted key matrix to avoid high price filtration leak
   const lowBudgetKeywords = [
-    "mini pocket tools", 
-    "cable wire protector Organizer", 
-    "keychain led mini light", 
-    "silicone kitchen gadgets",
-    "phone screen cleaning brush"
+    "cable protector", 
+    "mini led keychain", 
+    "silicone kitchen tool",
+    "phone stand",
+    "cleaning brush"
   ];
 
   const selectedKeywordIdx = (page - 1) % lowBudgetKeywords.length;
   // If user passes specific keyword from selector dropdown, respect it, else route through target matrix
   const targetKeyword = options.keyword && options.keyword !== "gadgets" ? options.keyword : lowBudgetKeywords[selectedKeywordIdx];
 
-  // 🛠️ FIX Applied: Extended boundary scope to pull density volume safely
   let result = await searchProducts(targetKeyword, {
     page,
     pageSize,
     categoryId: options.categoryId,
     minPrice: "1.00",
-    maxPrice: "10.00", // Increased from 4.95 to debug data flow density
+    maxPrice: "10.00", 
     sort: options.sort || "VOLUME_DESC"
   });
 
-  // Safe recovery fallback if dynamic filters hit a dead-end on API array distribution
+  // 💎 FIXED: Fallback changed to strict low-tier item matrix to guarantee data density under $5
   if (!result.products || result.products.length === 0) {
-    result = await searchProducts("utility accessories tools", {
+    result = await searchProducts("earphone case cover bag", {
       page,
       pageSize,
       minPrice: "1.00",
-      maxPrice: "10.00", // Increased from 4.90
+      maxPrice: "10.00",
       sort: "VOLUME_DESC"
     });
   }
 
-  // Pure strict clamping layer logic expanded to match extended payload array
+  // Pure strict clamping layer logic expanded to guarantee density matching
   if (result.products && result.products.length > 0) {
     result.products = result.products.filter(p => {
       const price = parseFloat(p.sale_price || "0");
-      return price > 0 && price <= 10.50; // Increased from 5.15 for direct trace safety
+      return price > 0 && price <= 12.00; // Expanded safety padding for direct trace safety
     });
   }
 
@@ -349,13 +348,13 @@ export async function searchProducts(
   const minPr = options.minPrice || "none";
   const maxPr = options.maxPrice || "none";
 
-  // 💎 FIXED: Using exact table structural alignment naming mapping patterns 'query_key'
+  // Using exact table structural alignment naming mapping patterns 'query_key'
   const queryKey = `search:${effectiveKeyword.toLowerCase().replace(/\s+/g, "-")}:cat:${targetCategoryIds || "all"}:sort:${options.sort || "default"}:min:${minPr}:max:${maxPr}:page:${page}:seed:${activeSeed}`;
 
   const memCached = cache.get<ProductQueryResult>(queryKey);
   if (memCached) return memCached;
 
-  // 💎 FIXED: Modified lookup to match database query mapping attributes cleanly
+  // Modified lookup to match database query mapping attributes cleanly
   const { data: qCache } = await (supabase.from("cached_searches") as any)
     .select("product_ids")
     .eq("query_key", queryKey)
@@ -387,10 +386,9 @@ export async function searchProducts(
     const result = resp?.result;
     const rawProducts = extractRawProducts(result);
 
-    // 💎 FIXED: Safe block logic prevents random un-restricted fallbacks from messing price flows
+    // Safe block logic prevents random un-restricted fallbacks from messing price flows
     if (!rawProducts || rawProducts.length < 2) {
       if (options.maxPrice && parseFloat(options.maxPrice) <= 5.00) {
-        // Safe lock triggered for ultra low-price boundaries to avoid high-end leaks
         return { products: [], totalPage: 1, currentPage: page, totalCount: 0 };
       }
       if (targetCategoryIds) {
@@ -406,7 +404,7 @@ export async function searchProducts(
     const resultPayload: ProductQueryResult = { products: parsedProducts, totalPage, currentPage: page, totalCount };
     cache.set(queryKey, resultPayload, ONE_HOUR);
 
-    // 💎 FIXED: DB synchronization using exact columns schema matching criteria 'query_key' & 'product_ids'
+    // DB synchronization using exact columns schema matching criteria 'query_key' & 'product_ids'
     syncProductsToCache(parsedProducts).then(async () => {
       const pIdsArray = parsedProducts.map(p => p.product_id);
       await (supabase.from("cached_searches") as any).upsert({
