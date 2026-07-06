@@ -8,33 +8,34 @@ export const metadata = {
   description: "Browse premium high-volume utility gadgets, fashion jewelry and mobile gear strictly from $1 to $5.",
 };
 
+// 💎 FIXED: Lambe phrases ko short discrete keywords mein convert kiya hai taake API exact response de
 const filters = [
   { label: "✨ All Deals", key: "gadgets" },
-  { label: "💍 Luxury Rings", key: "luxury rings adjustable couple titanium steel ring" },
-  { label: "📿 Necklaces & Pendants", key: "pendant necklace choker chain minimalist sterling silver" },
-  { label: "✨ Bracelets & Bangles", key: "charm bracelet bangle cuff leather beaded bracelets" },
-  { label: "💎 Premium Earrings", key: "stud earrings hoop drop zircon crystal earrings dangle" },
-  { label: "⌚ Watch Straps & Bands", key: "apple watch band samsung strap milanese loop silicone" },
-  { label: "🎀 Hair Accessories", key: "hair claws clips headbands silk scrunchies fashion pins" },
-  { label: "🕶️ Trendy Sunglasses", key: "retro sunglasses uv400 vintage eyewear fashion glasses" },
-  { label: "🔑 Cute Keychains", key: "keychain pendant bag charm car key ring anime leather" },
-  { label: "🧣 Scarves & Gloves", key: "silk scarf warm gloves bucket hat winter beanie unisex" },
-  { label: "⚡ Tech Gadgets", key: "mini electronic gadgets led lights smart smart accessories" },
-  { label: "📱 Mobile Acc", key: "iphone case fast charging cable phone stand magsafe wallet" },
-  { label: "🎧 Audio & Cases", key: "airpods case protective cover wire organizer earphone pouch" },
-  { label: "💻 Desk & PC Gear", key: "mouse pad rgb keyboard cleaning brush usb hub desk organizer" },
-  { label: "💡 LED & Night Lights", key: "rgb strip light desk lamp neon sign motion sensor night light" },
-  { label: "🏠 Home Hacks", key: "smart home gadgets organization storage clips decor lights" },
-  { label: "🍳 Kitchen Tools", key: "kitchen peeler slicer silicone mold cleaning brush whisk" },
-  { label: "💄 Beauty & Makeup", key: "makeup brushes blending sponge nail art sticker lip gloss" },
-  { label: "🧴 Personal Care", key: "face massager electric toothbrush head massager comb nail clipper" },
-  { label: "🚗 Car Gadgets", key: "car phone mount charger air freshener organizer cleaning gel" },
-  { label: "👜 Mini Bags & Pouches", key: "crossbody bag coin purse cosmetic pouch canvas tote card holder" },
-  { label: "👟 Shoe Care & Socks", key: "sneaker socks shoelaces anti crease protector insoles" },
-  { label: "✈️ Travel Gear", key: "travel bottles luggage tag passport holder neck pillow organizer" },
-  { label: "🐾 Pet Essentials", key: "dog collar cat toy pet grooming brush feeding bowl led collar" },
-  { label: "🧸 Cute Toys & Gifts", key: "plush toy fidget spinner anime figure building blocks stickers" },
-  { label: "✒️ Cute Stationery", key: "gel pens aesthetic notebook sticky notes tape cutter organizer" }
+  { label: "💍 Luxury Rings", key: "luxury rings" },
+  { label: "📿 Necklaces & Pendants", key: "pendant necklace" },
+  { label: "✨ Bracelets & Bangles", key: "charm bracelet" },
+  { label: "💎 Premium Earrings", key: "stud earrings" },
+  { label: "⌚ Watch Straps & Bands", key: "watch strap" },
+  { label: "🎀 Hair Accessories", key: "hair claws" },
+  { label: "🕶️ Trendy Sunglasses", key: "retro sunglasses" },
+  { label: "🔑 Cute Keychains", key: "keychain pendant" },
+  { label: "🧣 Scarves & Gloves", key: "silk scarf" },
+  { label: "⚡ Tech Gadgets", key: "mini gadgets" },
+  { label: "📱 Mobile Acc", key: "iphone case" },
+  { label: "🎧 Audio & Cases", key: "airpods case" },
+  { label: "💻 Desk & PC Gear", key: "mouse pad" },
+  { label: "💡 LED & Night Lights", key: "rgb strip light" },
+  { label: "🏠 Home Hacks", key: "home gadgets" },
+  { label: "🍳 Kitchen Tools", key: "kitchen tools" },
+  { label: "💄 Beauty & Makeup", key: "makeup brushes" },
+  { label: "🧴 Personal Care", key: "face massager" },
+  { label: "🚗 Car Gadgets", key: "car phone mount" },
+  { label: "👜 Mini Bags & Pouches", key: "crossbody bag" },
+  { label: "👟 Shoe Care & Socks", key: "sneaker socks" },
+  { label: "✈️ Travel Gear", key: "travel bottles" },
+  { label: "🐾 Pet Essentials", key: "dog collar" },
+  { label: "🧸 Cute Toys & Gifts", key: "plush toy" },
+  { label: "✒️ Cute Stationery", key: "gel pens" }
 ];
 
 export default async function UnderFiveShopPage({
@@ -47,7 +48,6 @@ export default async function UnderFiveShopPage({
   const currentSort = resolvedParams.sort || "VOLUME_DESC";
 
   const rawCat = resolvedParams.cat || "";
-  // FIXED: Stuffed heavy phrase removed to avoid hitting 0 results from AliExpress API
   const currentKeyword = rawCat ? decodeURIComponent(rawCat) : "gadgets";
 
   const data = await getUnderFiveShop({
@@ -92,7 +92,7 @@ export default async function UnderFiveShopPage({
       </div>
 
       {/* Product Feed Grid Layout */}
-      {data.products && data.products.length > 0 ? (
+      {data && data.products && data.products.length > 0 ? (
         <div>
           <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
             {data.products.map((p) => (
