@@ -5,7 +5,7 @@ import { useState, Suspense, useEffect, useRef } from "react";
 import { useShopStore } from "@/store/useShopStore"; // Core Engine State Connection
 import { 
   Search, Menu, X, ChevronRight, Flame, Home, Grid3X3, Tag, Compass, Zap, 
-  BookOpen, Wrench, GitCompare, Phone, Gem, Tv, Car, Cpu, Sun, Lock, 
+  Wrench, GitCompare, Phone, Gem, Tv, Car, Cpu, Sun, Lock, 
   TrendingUp, Sparkles, Package, ShoppingCart, Heart 
 } from "lucide-react";
 import { CATEGORIES } from "@/data/categories";
@@ -23,7 +23,6 @@ const NAV_LINKS = [
   { href: "/feed", icon: Zap, label: "Discover" },
   { href: "/search", icon: Search, label: "Search" },
   { href: "/compare", icon: GitCompare, label: "Compare" },
-  { href: "/blog", icon: BookOpen, label: "Blog" },
   { href: "/tools", icon: Wrench, label: "Tools" },
 ];
 
@@ -112,40 +111,47 @@ function HeaderSearch() {
       </div>
 
       {/* Main header */}
-      <header className="bg-orange-500 shadow-md sticky top-0 z-50 transition-all">
+      <header className="bg-orange-500 shadow-md sticky top-0 z-50 w-full overflow-hidden sm:overflow-visible">
         <div className="max-w-7xl mx-auto px-3 sm:px-4 py-2.5">
-          <div className="flex items-center gap-2 sm:gap-4">
-            {/* Hamburger (mobile) */}
-            <button
-              onClick={() => setDrawerOpen(true)}
-              className="lg:hidden text-white p-1.5 rounded hover:bg-orange-600 transition-colors flex-shrink-0"
-              aria-label="Open menu"
-            >
-              <Menu size={22} />
-            </button>
-
-            {/* Logo */}
-            <Link href="/" className="flex-shrink-0 flex items-center gap-0.5 mr-1 sm:mr-2">
-              <span className="text-white font-black text-xl sm:text-2xl tracking-tight">Shop</span>
-              <span className="bg-white text-orange-500 font-black text-xl sm:text-2xl px-1.5 rounded tracking-tight shadow-sm">Peak</span>
-            </Link>
-
-            {/* Search */}
-            <form onSubmit={handleSearch} className="flex-1 flex relative">
-              <input
-                ref={inputRef}
-                type="text"
-                value={query}
-                onChange={e => handleInputChange(e.target.value)}
-                onFocus={() => query.length >= 2 && setShowSugg(true)}
-                placeholder="Search products, brands, categories..."
-                className="flex-1 px-4 py-2 text-sm rounded-l-full border-0 outline-none text-gray-800 bg-white min-w-0 placeholder-gray-400 focus:ring-2 focus:ring-orange-700 transition-all"
-              />
-              <button type="submit" className="bg-orange-700 hover:bg-orange-800 text-white px-4 sm:px-6 rounded-r-full transition-colors flex-shrink-0 flex items-center justify-center">
-                <Search size={18} />
+          <div className="flex items-center justify-between gap-2 sm:gap-4 w-full">
+            
+            {/* Left Box: Menu Button & Logo */}
+            <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
+              {/* Hamburger (mobile) */}
+              <button
+                onClick={() => setDrawerOpen(true)}
+                className="lg:hidden text-white p-1.5 rounded hover:bg-orange-600 transition-colors"
+                aria-label="Open menu"
+              >
+                <Menu size={22} />
               </button>
+
+              {/* Logo */}
+              <Link href="/" className="flex items-center gap-0.5">
+                <span className="text-white font-black text-lg sm:text-2xl tracking-tight">Shop</span>
+                <span className="bg-white text-orange-500 font-black text-lg sm:text-2xl px-1.5 rounded tracking-tight shadow-sm">Peak</span>
+              </Link>
+            </div>
+
+            {/* Middle Box: Responsive Fluid Search Container */}
+            <form onSubmit={handleSearch} className="flex-1 max-w-2xl relative min-w-0 mx-1 sm:mx-0">
+              <div className="flex w-full">
+                <input
+                  ref={inputRef}
+                  type="text"
+                  value={query}
+                  onChange={e => handleInputChange(e.target.value)}
+                  onFocus={() => query.length >= 2 && setShowSugg(true)}
+                  placeholder="Search products..."
+                  className="w-full px-3 sm:px-4 py-2 text-xs sm:text-sm rounded-l-full border-0 outline-none text-gray-800 bg-white min-w-0 placeholder-gray-400 focus:ring-2 focus:ring-orange-700 transition-all"
+                />
+                <button type="submit" className="bg-orange-700 hover:bg-orange-800 text-white px-3 sm:px-6 rounded-r-full transition-colors flex-shrink-0 flex items-center justify-center">
+                  <Search size={16} className="sm:w-[18px] sm:h-[18px]" />
+                </button>
+              </div>
+              
               {showSugg && suggestions.length > 0 && (
-                <div className="absolute top-full left-0 right-0 mt-1 bg-white shadow-xl rounded-xl border border-gray-100 overflow-hidden z-50">
+                <div className="absolute top-full left-0 right-0 mt-1 bg-white shadow-xl rounded-xl border border-gray-100 overflow-hidden z-50 max-h-60 overflow-y-auto">
                   {suggestions.map(s => (
                     <button
                       key={s}
@@ -160,19 +166,19 @@ function HeaderSearch() {
               )}
             </form>
 
-            {/* Desktop Quick-Access Core Sync (Wishlist, Cart & Under 5$ Icons) */}
-            <div className="hidden sm:flex items-center gap-3 md:gap-4 text-white font-bold text-sm flex-shrink-0">
-              
-              {/* Desktop Under 5$ Conversion Trigger Button */}
+            {/* Right Box: Desktop & Mobile Triggers */}
+            <div className="flex items-center gap-2 sm:gap-3 md:gap-4 text-white font-bold text-sm flex-shrink-0">
+
+              {/* Under 5$ Conversion Trigger Button (Visible everywhere, scales beautifully) */}
               <Link 
                 href="/under-5-shop" 
-                className="bg-yellow-300 hover:bg-yellow-400 text-black font-black text-xs px-3 py-1.5 rounded-xl transition-all flex items-center gap-1 shadow-sm uppercase tracking-wider scale-100 hover:scale-[1.03] active:scale-95 duration-150 shrink-0"
+                className="bg-yellow-300 hover:bg-yellow-400 text-black font-black text-[10px] sm:text-xs px-2 sm:px-3 py-1.5 rounded-xl transition-all flex items-center gap-0.5 sm:gap-1 shadow-sm uppercase tracking-wider shrink-0"
               >
-                <span className="text-xs animate-pulse">✨</span> under 5$
+                <span className="animate-pulse">✨</span> <span className="hidden xs:inline">under</span> 5$
               </Link>
 
-              {/* Dynamic Wishlist Module */}
-              <Link href="/wishlist" className="relative group p-1.5 flex flex-col items-center justify-center hover:text-yellow-100 transition-colors">
+              {/* Dynamic Wishlist Module (Desktop Only) */}
+              <Link href="/wishlist" className="hidden sm:relative sm:group sm:p-1.5 sm:flex sm:flex-col sm:items-center sm:justify-center hover:text-yellow-100 transition-colors">
                 <Heart size={21} className="group-hover:scale-105 transition-transform" />
                 <span className="text-[10px] font-bold mt-0.5 hidden md:block">Wishlist</span>
                 {wishlistItemsCount > 0 && (
@@ -182,8 +188,8 @@ function HeaderSearch() {
                 )}
               </Link>
 
-              {/* Dynamic Checkout Cart Module */}
-              <Link href="/cart" className="relative group p-1.5 flex flex-col items-center justify-center bg-orange-600/50 hover:bg-orange-700 border border-orange-400/20 px-3 py-1 rounded-xl transition-all">
+              {/* Dynamic Checkout Cart Module (Desktop Only) */}
+              <Link href="/cart" className="hidden sm:relative sm:group sm:p-1.5 sm:flex sm:flex-col sm:items-center sm:justify-center bg-orange-600/50 hover:bg-orange-700 border border-orange-400/20 px-3 py-1 rounded-xl transition-all">
                 <div className="flex items-center gap-2">
                   <div className="relative">
                     <ShoppingCart size={20} className="group-hover:scale-105 transition-transform" />
@@ -343,7 +349,7 @@ function HeaderSearch() {
 export default function Header() {
   return (
     <Suspense fallback={
-      <div className="bg-orange-500 h-14 sticky top-0 z-50 flex items-center px-4">
+      <div className="bg-orange-500 h-14 sticky top-0 z-50 flex items-center px-4 w-full">
         <span className="text-white font-black text-xl">Shop</span>
         <span className="bg-white text-orange-500 font-black text-xl px-1 rounded ml-0.5">Peak</span>
       </div>
