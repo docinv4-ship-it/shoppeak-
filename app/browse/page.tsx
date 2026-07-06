@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import ProductGrid from "@/components/ProductGrid";
 import Pagination from "@/components/Pagination";
 import { AliProduct } from "@/lib/aliexpress";
@@ -24,10 +24,10 @@ const PRICE_RANGES = [
 ];
 
 const BROWSE_KEYWORDS = [
-  "trending products 2024", "best seller global", "new arrival popular", "top rated",
-  "hot items worldwide", "viral products", "most ordered items", "recommended products",
-  "flash sale limited", "top picks worldwide", "must have items", "staff picks",
-  "premium quality sale", "daily deals marketplace", "customer favorites",
+  "trending products premium", "best seller global market", "new arrival luxury trend", "top rated choice",
+  "hot items high value", "viral unique gadgets", "most ordered flagship", "recommended collections",
+  "flash sale exclusive", "top picks hyper demand", "must have innovations", "staff choice picks",
+  "premium high quality gear", "daily deals trending", "customer favorite picks",
 ];
 
 export default function BrowsePage() {
@@ -55,30 +55,59 @@ export default function BrowsePage() {
       const catData = CATEGORIES.find(c => c.id === selectedCat);
       const kwIndex = ((p - 1) + seedRef.current) % BROWSE_KEYWORDS.length;
       const keyword = catData?.keywords?.[p % (catData.keywords?.length || 1)] || BROWSE_KEYWORDS[kwIndex];
-      const params = new URLSearchParams({ q: keyword, page: String(p), pageSize: "50", seed: String(seedRef.current) });
+      
+      const params = new URLSearchParams({ 
+        q: keyword, 
+        page: String(p), 
+        pageSize: "50", 
+        seed: String(seedRef.current) 
+      });
+      
       if (selectedCat) params.set("cat", selectedCat);
       if (sort) params.set("sort", sort);
       if (priceRange.min) params.set("minPrice", priceRange.min);
       if (priceRange.max) params.set("maxPrice", priceRange.max);
+      
       const res = await fetch(`/api/products/search?${params}`);
       const data = await res.json();
+      
       setProducts(data.products || []);
       setTotalPages(Math.min(data.totalPage || 200, 200));
       setTotalCount(data.totalCount || (data.products?.length || 0) * Math.min(data.totalPage || 200, 200));
+    } catch (e) {
+      console.error(e);
     } finally { setLoading(false); }
   }, [selectedCat, sort, priceRange]);
 
   useEffect(() => { setPage(1); }, [selectedCat, sort, priceRange]);
   useEffect(() => { fetchProducts(page); window.scrollTo({ top: 0, behavior: "smooth" }); }, [page, fetchProducts]);
 
+  // ⚡ DUAL INTERACTION ENGINE: Client side rigorous fallback arrangement sorting protection
+  const optimizedProcessedProducts = useMemo(() => {
+    if (!products || products.length === 0) return [];
+    let processingPool = [...products];
+
+    // Client execution sort matching guarantees response visual transformation instantly
+    if (sort === "SALE_PRICE_ASC") {
+      processingPool.sort((a, b) => parseFloat(a.sale_price || "0") - parseFloat(b.sale_price || "0"));
+    } else if (sort === "SALE_PRICE_DESC") {
+      processingPool.sort((a, b) => parseFloat(b.sale_price || "0") - parseFloat(a.sale_price || "0"));
+    } else if (sort === "DISCOUNT_DESC") {
+      processingPool.sort((a, b) => parseFloat(b.discount || "0") - parseFloat(a.discount || "0"));
+    } else if (sort === "LAST_VOLUME_DESC") {
+      processingPool.sort((a, b) => (b.lastest_volume || 0) - (a.lastest_volume || 0));
+    }
+    return processingPool;
+  }, [products, sort]);
+
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="bg-white border-b border-gray-200 sticky top-16 z-20">
+      <div className="bg-white border-b border-gray-200 sticky top-16 z-20 shadow-sm">
         <div className="max-w-7xl mx-auto px-3 py-2 flex items-center gap-2 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
-          <button onClick={() => setSelectedCat("")} className={`shrink-0 px-3 py-1.5 rounded-full text-sm font-medium border transition-colors ${!selectedCat ? "bg-orange-500 text-white border-orange-500" : "border-gray-200 text-gray-600 hover:border-orange-300 bg-white"}`}>All Products</button>
+          <button onClick={() => setSelectedCat("")} className={`shrink-0 px-3 py-1.5 rounded-full text-sm font-semibold border transition-all ${!selectedCat ? "bg-orange-500 text-white border-orange-500 shadow-sm" : "border-gray-200 text-gray-700 hover:border-orange-400 bg-gray-50 hover:bg-gray-100"}`}>All Products</button>
           {CATEGORIES.slice(0, 14).map(cat => (
             <button key={cat.id} onClick={() => setSelectedCat(selectedCat === cat.id ? "" : cat.id)}
-              className={`shrink-0 px-3 py-1.5 rounded-full text-sm font-medium border transition-colors flex items-center gap-1 ${selectedCat === cat.id ? "bg-orange-500 text-white border-orange-500" : "border-gray-200 text-gray-600 hover:border-orange-300 bg-white"}`}>
+              className={`shrink-0 px-3 py-1.5 rounded-full text-sm font-semibold border transition-all flex items-center gap-1 ${selectedCat === cat.id ? "bg-orange-500 text-white border-orange-500 shadow-sm" : "border-gray-200 text-gray-700 hover:border-orange-400 bg-gray-50 hover:bg-gray-100"}`}>
               <span>{cat.icon}</span>{cat.name}
             </button>
           ))}
@@ -88,36 +117,48 @@ export default function BrowsePage() {
       <div className="max-w-7xl mx-auto px-3 py-4">
         <div className="flex items-center justify-between mb-4 gap-2">
           <div className="flex items-center gap-2">
-            <button onClick={() => setShowFilters(f => !f)} className="flex items-center gap-2 px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white hover:border-orange-300 transition-colors">
+            <button onClick={() => setShowFilters(f => !f)} className="flex items-center gap-2 px-3 py-2 border border-gray-200 rounded-lg text-sm font-bold bg-white text-gray-800 hover:border-orange-400 hover:text-orange-500 transition-all shadow-sm">
               <SlidersHorizontal size={14} />Filters
-              {(priceRange.min || priceRange.max) && <span className="bg-orange-500 text-white text-[10px] w-4 h-4 rounded-full flex items-center justify-center font-bold">1</span>}
+              {(priceRange.min || priceRange.max) && <span className="bg-orange-500 text-white text-[10px] w-4 h-4 rounded-full flex items-center justify-center font-black animate-pulse">1</span>}
             </button>
-            <span className="text-sm text-gray-500 hidden sm:block">{totalCount.toLocaleString()} products</span>
+            <span className="text-sm text-gray-500 font-medium hidden sm:block">{totalCount.toLocaleString()} products found</span>
           </div>
-          <select value={sort} onChange={e => { setSort(e.target.value); setPage(1); }} className="border border-gray-200 rounded-lg text-sm py-2 px-3 bg-white focus:border-orange-400 focus:outline-none">
+          <select value={sort} onChange={e => { setSort(e.target.value); setPage(1); }} className="border border-gray-200 font-semibold rounded-lg text-sm py-2 px-3 bg-white text-gray-800 focus:border-orange-500 focus:outline-none shadow-sm cursor-pointer">
             {SORT_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
         </div>
 
+        {/* 💎 PREMIUM UI CONTROL BLOCK: Fixed contrast white layer invisibility issues completely */}
         {showFilters && (
-          <div className="bg-white border border-gray-200 rounded-xl p-4 mb-4">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="font-semibold text-gray-800 text-sm">Price Range</h3>
-              <button onClick={() => { setPriceRange({ min: "", max: "" }); setShowFilters(false); }} className="text-gray-400 hover:text-gray-600"><X size={16} /></button>
+          <div className="bg-white border border-gray-200 shadow-md rounded-xl p-4 mb-5 animate-fadeIn">
+            <div className="flex items-center justify-between mb-3 border-b border-gray-100 pb-2">
+              <h3 className="font-bold text-gray-900 text-sm tracking-wide">Select Price Range</h3>
+              <button onClick={() => { setPriceRange({ min: "", max: "" }); setShowFilters(false); }} className="text-gray-400 hover:text-gray-700 p-1 rounded-lg transition-colors"><X size={17} /></button>
             </div>
             <div className="flex flex-wrap gap-2">
-              {PRICE_RANGES.map(range => (
-                <button key={range.label} onClick={() => setPriceRange({ min: range.min, max: range.max })}
-                  className={`px-3 py-1.5 rounded-lg border text-sm transition-colors ${priceRange.min === range.min && priceRange.max === range.max ? "bg-orange-500 text-white border-orange-500" : "border-gray-200 hover:border-orange-300 text-gray-600"}`}>
-                  {range.label}
-                </button>
-              ))}
+              {PRICE_RANGES.map(range => {
+                const isSelected = priceRange.min === range.min && priceRange.max === range.max;
+                return (
+                  <button 
+                    key={range.label} 
+                    onClick={() => setPriceRange({ min: range.min, max: range.max })}
+                    className={`px-4 py-2 rounded-xl border text-xs font-bold transition-all shadow-sm ${
+                      isSelected 
+                        ? "bg-orange-600 text-white border-orange-600 font-black scale-[1.02]" 
+                        : "bg-gray-100 border-gray-300 text-gray-900 hover:bg-gray-200 hover:border-gray-400"
+                    }`}
+                  >
+                    {range.label}
+                  </button>
+                );
+              })}
             </div>
           </div>
         )}
 
-        <ProductGrid products={products} cols={5} loading={loading} skeletonCount={50} />
-        {!loading && products.length > 0 && (
+        <ProductGrid products={optimizedProcessedProducts} cols={5} loading={loading} skeletonCount={50} />
+        
+        {!loading && optimizedProcessedProducts.length > 0 && (
           <Pagination currentPage={page} totalPages={totalPages} onPageChange={p => { setPage(p); }} showTotal={totalCount} perPage={50} />
         )}
       </div>
