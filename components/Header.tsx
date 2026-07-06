@@ -114,7 +114,7 @@ function HeaderSearch() {
       <header className="bg-orange-500 shadow-md sticky top-0 z-50 w-full overflow-hidden sm:overflow-visible">
         <div className="max-w-7xl mx-auto px-3 sm:px-4 py-2.5">
           <div className="flex items-center justify-between gap-2 sm:gap-4 w-full">
-            
+
             {/* Left Box: Menu Button & Logo */}
             <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
               {/* Hamburger (mobile) */}
@@ -135,7 +135,7 @@ function HeaderSearch() {
 
             {/* Middle Box: Responsive Fluid Search Container */}
             <form onSubmit={handleSearch} className="flex-1 max-w-2xl relative min-w-0 mx-1 sm:mx-0">
-              <div className="flex w-full">
+              <div className="flex w-full items-center bg-white dark:bg-white rounded-full overflow-hidden border-0 shadow-sm focus-within:ring-2 focus-within:ring-orange-700 transition-all">
                 <input
                   ref={inputRef}
                   type="text"
@@ -143,20 +143,37 @@ function HeaderSearch() {
                   onChange={e => handleInputChange(e.target.value)}
                   onFocus={() => query.length >= 2 && setShowSugg(true)}
                   placeholder="Search products..."
-                  className="w-full px-3 sm:px-4 py-2 text-xs sm:text-sm rounded-l-full border-0 outline-none text-gray-800 bg-white min-w-0 placeholder-gray-400 focus:ring-2 focus:ring-orange-700 transition-all"
+                  className="w-full px-4 py-2 text-sm outline-none border-0 text-gray-950 bg-white dark:text-gray-950 dark:bg-white min-w-0 placeholder-gray-400 focus:ring-0 focus:outline-none"
+                  style={{ color: '#030712', backgroundColor: '#ffffff' }}
                 />
-                <button type="submit" className="bg-orange-700 hover:bg-orange-800 text-white px-3 sm:px-6 rounded-r-full transition-colors flex-shrink-0 flex items-center justify-center">
+                {query.trim() && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setQuery("");
+                      setShowSugg(false);
+                    }}
+                    className="px-2 text-gray-400 hover:text-gray-600 transition-colors shrink-0"
+                  >
+                    <X size={16} />
+                  </button>
+                )}
+                <button 
+                  type="submit" 
+                  className="bg-orange-700 hover:bg-orange-800 text-white h-9 px-4 sm:px-6 transition-colors flex-shrink-0 flex items-center justify-center rounded-r-full"
+                >
                   <Search size={16} className="sm:w-[18px] sm:h-[18px]" />
                 </button>
               </div>
-              
+
               {showSugg && suggestions.length > 0 && (
-                <div className="absolute top-full left-0 right-0 mt-1 bg-white shadow-xl rounded-xl border border-gray-100 overflow-hidden z-50 max-h-60 overflow-y-auto">
+                <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-white shadow-xl rounded-xl border border-gray-100 overflow-hidden z-50 max-h-60 overflow-y-auto">
                   {suggestions.map(s => (
                     <button
                       key={s}
+                      type="button"
                       onMouseDown={() => { setQuery(s); setShowSugg(false); router.push(`/search?q=${encodeURIComponent(s)}`); }}
-                      className="flex items-center gap-2 w-full px-4 py-2.5 text-sm text-gray-700 hover:bg-orange-50 hover:text-orange-600 text-left transition-colors"
+                      className="flex items-center gap-2 w-full px-4 py-2.5 text-sm text-gray-800 dark:text-gray-800 hover:bg-orange-50 dark:hover:bg-orange-50 text-left transition-colors"
                     >
                       <Search size={13} className="text-gray-400 shrink-0" />
                       {s}
