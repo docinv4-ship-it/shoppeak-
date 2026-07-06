@@ -21,8 +21,8 @@ export default function UnderFiveDropdown({ filters, currentKeyword, currentSort
       id="cat-dropdown"
       value={currentKeyword}
       onChange={(e) => {
-        const val = encodeURIComponent(e.target.value);
-        // Next.js standard client router handling
+        const val = e.target.value; // 💎 FIXED: encodeURIComponent hata diya taake double encoding na ho
+        // Next.js standard client router handling spaces natively
         router.push(`/under-5-shop?cat=${val}&sort=${currentSort}`);
       }}
       className="w-full bg-white text-gray-800 text-sm font-semibold px-4 py-2.5 rounded-lg border border-gray-200 focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-all appearance-none cursor-pointer shadow-sm"
