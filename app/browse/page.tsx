@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef, useMemo } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { useState, useEffect, useCallback, useRef, useMemo, Suspense } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import ProductGrid from "@/components/ProductGrid";
 import Pagination from "@/components/Pagination";
 import { AliProduct } from "@/lib/aliexpress";
@@ -68,47 +68,32 @@ function resolveCategory(input: string) {
   );
 }
 
-function readParamsFromLocation() {
-  if (typeof window === "undefined") {
-    return {
-      q: "",
-      cat: "",
-      sort: "",
-      minPrice: "",
-      maxPrice: "",
-      page: 1,
-    };
-  }
-
-  const params = new URLSearchParams(window.location.search);
-  return {
-    q: params.get("q") || "",
-    cat: params.get("cat") || "",
-    sort: params.get("sort") || "",
-    minPrice: params.get("minPrice") || "",
-    maxPrice: params.get("maxPrice") || "",
-    page: Math.max(1, parseInt(params.get("page") || "1", 10) || 1),
-  };
-}
-
-export default function BrowsePage() {
+function BrowsePageContent() {
   const router = useRouter();
   const pathname = usePathname();
+  const searchParams = useSearchParams();
 
+  // Reactive Global Param Trackers
+  const searchQuery = searchParams.get("q") || "";
+  const selectedCat = searchParams.get("cat") || "";
+  const sort = searchParams.get("sort") || "";
+  const minPrice = searchParams.get("minPrice") || "";
+  const maxPrice = searchParams.get("maxPrice") || "";
+  const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10) || 1);
+
+  // Dynamic Data & UI Elements Pool
   const [products, setProducts] = useState<AliProduct[]>([]);
   const [loading, setLoading] = useState(true);
-  const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(200);
   const [totalCount, setTotalCount] = useState(10000);
-  const [selectedCat, setSelectedCat] = useState("");
-  const [sort, setSort] = useState("");
-  const [priceRange, setPriceRange] = useState({ min: "", max: "" });
   const [showFilters, setShowFilters] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [draftSearch, setDraftSearch] = useState("");
+  
+  // DRAFT STATE CONTROL MATRIX FOR INPUT SYNCING
+  const [draftSearch, setDraftSearch] = useState(searchQuery);
 
   const seedRef = useRef<number>(0);
 
+  // Initialization Seed Loader Engine
   useEffect(() => {
     const key = "sp_browse_seed";
     let s = parseInt(sessionStorage.getItem(key) || "0", 10);
@@ -119,16 +104,10 @@ export default function BrowsePage() {
     seedRef.current = s;
   }, []);
 
+  // CRITICAL FIX FOR SCREENSHOT BUG: Auto-locks and forces local box to update when header updates URL!
   useEffect(() => {
-    const initial = readParamsFromLocation();
-
-    setSearchQuery(initial.q);
-    setDraftSearch(initial.q);
-    setSelectedCat(initial.cat);
-    setSort(initial.sort);
-    setPriceRange({ min: initial.minPrice, max: initial.maxPrice });
-    setPage(initial.page);
-  }, []);
+    setDraftSearch(searchQuery);
+  }, [searchQuery]);
 
   const updateUrl = useCallback(
     (next: {
@@ -139,88 +118,85 @@ export default function BrowsePage() {
       maxPrice?: string;
       page?: number;
     }) => {
-      const current =
-        typeof window !== "undefined"
-          ? new URLSearchParams(window.location.search)
-          : new URLSearchParams();
+      const current = new URLSearchParams(window.location.search);
 
       const setParam = (key: string, value?: string) => {
-        if (value && value.trim() !== "") current.set(key, value);
-        else current.delete(key);
+        if (value !== undefined) {
+          if (value.trim() !== "") current.set(key, value);
+          else current.delete(key);
+        }
       };
 
-      setParam("q", next.q ?? searchQuery);
-      setParam("cat", next.cat ?? selectedCat);
-      setParam("sort", next.sort ?? sort);
-      setParam("minPrice", next.minPrice ?? priceRange.min);
-      setParam("maxPrice", next.maxPrice ?? priceRange.max);
+      if (next.q !== undefined) setParam("q", next.q);
+      if (next.cat !== undefined) setParam("cat", next.cat);
+      if (next.sort !== undefined) setParam("sort", next.sort);
+      if (next.minPrice !== undefined) setParam("minPrice", next.minPrice);
+      if (next.maxPrice !== undefined) setParam("maxPrice", next.maxPrice);
 
-      const nextPage = next.page ?? page;
-      if (nextPage > 1) current.set("page", String(nextPage));
-      else current.delete("page");
+      const nextPage = next.page !== undefined ? next.page : 1;
+      if (next.page !== undefined) {
+        if (nextPage > 1) current.set("page", String(nextPage));
+        else current.delete("page");
+      } else {
+        current.delete("page"); // Reset page if parameters update
+      }
 
       const queryString = current.toString();
       router.replace(queryString ? `${pathname}?${queryString}` : pathname, { scroll: false });
     },
-    [router, pathname, searchQuery, selectedCat, sort, priceRange.min, priceRange.max, page]
+    [router, pathname]
   );
 
-  const fetchProducts = useCallback(
-    async (p: number) => {
-      setLoading(true);
+  const fetchProducts = useCallback(async () => {
+    setLoading(true);
 
-      try {
-        const catData = resolveCategory(selectedCat) as any;
-        const catKeywords: string[] = Array.isArray(catData?.keywords) ? catData.keywords : [];
-        const baseQuery = searchQuery.trim();
+    try {
+      const catData = resolveCategory(selectedCat) as any;
+      const catKeywords: string[] = Array.isArray(catData?.keywords) ? catData.keywords : [];
+      const baseQuery = searchQuery.trim();
 
-        const keyword =
-          baseQuery ||
-          catKeywords[((p - 1) + seedRef.current) % (catKeywords.length || 1)] ||
-          BROWSE_KEYWORDS[((p - 1) + seedRef.current) % BROWSE_KEYWORDS.length];
+      const keyword =
+        baseQuery ||
+        catKeywords[((page - 1) + seedRef.current) % (catKeywords.length || 1)] ||
+        BROWSE_KEYWORDS[((page - 1) + seedRef.current) % BROWSE_KEYWORDS.length];
 
-        const params = new URLSearchParams({
-          q: keyword,
-          page: String(p),
-          pageSize: "50",
-          seed: String(seedRef.current),
-        });
+      const params = new URLSearchParams({
+        q: keyword,
+        page: String(page),
+        pageSize: "50",
+        seed: String(seedRef.current),
+      });
 
-        if (selectedCat) params.set("cat", selectedCat);
-        if (sort) params.set("sort", sort);
-        if (priceRange.min) params.set("minPrice", priceRange.min);
-        if (priceRange.max) params.set("maxPrice", priceRange.max);
+      if (selectedCat) params.set("cat", selectedCat);
+      if (sort) params.set("sort", sort);
+      if (minPrice) params.set("minPrice", minPrice);
+      if (maxPrice) params.set("maxPrice", maxPrice);
 
-        const res = await fetch(`/api/products/search?${params}`);
-        const data = await res.json();
+      const res = await fetch(`/api/products/search?${params}`);
+      const data = await res.json();
 
-        setProducts(Array.isArray(data.products) ? data.products : []);
-        setTotalPages(Math.min(Number(data.totalPage || 200), 200));
-        setTotalCount(
-          Number(
-            data.totalCount ||
-              ((Array.isArray(data.products) ? data.products.length : 0) *
-                Math.min(Number(data.totalPage || 200), 200))
-          )
-        );
-      } catch (error) {
-        console.error(error);
-        setProducts([]);
-      } finally {
-        setLoading(false);
-      }
-    },
-    [selectedCat, sort, priceRange.min, priceRange.max, searchQuery]
-  );
+      setProducts(Array.isArray(data.products) ? data.products : []);
+      setTotalPages(Math.min(Number(data.totalPage || 200), 200));
+      setTotalCount(
+        Number(
+          data.totalCount ||
+            ((Array.isArray(data.products) ? data.products.length : 0) *
+              Math.min(Number(data.totalPage || 200), 200))
+        )
+      );
+    } catch (error) {
+      console.error("Critical Failure in product fetch pipeline:", error);
+      setProducts([]);
+    } {
+      setLoading(false);
+    }
+  }, [selectedCat, sort, minPrice, maxPrice, searchQuery, page]);
 
+  // Execute clean fetch directly synchronized with system url changes
   useEffect(() => {
-    setPage(1);
-  }, [selectedCat, sort, priceRange, searchQuery]);
-
-  useEffect(() => {
-    fetchProducts(page);
+    fetchProducts();
     window.scrollTo({ top: 0, behavior: "smooth" });
-  }, [page, fetchProducts]);
+  }, [fetchProducts]);
 
   const optimizedProcessedProducts = useMemo(() => {
     if (!products || products.length === 0) return [];
@@ -246,8 +222,6 @@ export default function BrowsePage() {
   const onSubmitSearch = (e: React.FormEvent) => {
     e.preventDefault();
     const nextQuery = draftSearch.trim();
-    setSearchQuery(nextQuery);
-    setPage(1);
     updateUrl({
       q: nextQuery,
       page: 1,
@@ -256,8 +230,6 @@ export default function BrowsePage() {
 
   const handleCategoryClick = (catId: string) => {
     const nextCat = selectedCat === catId ? "" : catId;
-    setSelectedCat(nextCat);
-    setPage(1);
     updateUrl({
       cat: nextCat,
       page: 1,
@@ -265,8 +237,6 @@ export default function BrowsePage() {
   };
 
   const handleSortChange = (value: string) => {
-    setSort(value);
-    setPage(1);
     updateUrl({
       sort: value,
       page: 1,
@@ -274,9 +244,7 @@ export default function BrowsePage() {
   };
 
   const handlePriceRangeChange = (min: string, max: string) => {
-    setPriceRange({ min, max });
     setShowFilters(true);
-    setPage(1);
     updateUrl({
       minPrice: min,
       maxPrice: max,
@@ -285,12 +253,7 @@ export default function BrowsePage() {
   };
 
   const clearFilters = () => {
-    setPriceRange({ min: "", max: "" });
-    setSort("");
-    setSelectedCat("");
-    setSearchQuery("");
     setDraftSearch("");
-    setPage(1);
     router.replace(pathname, { scroll: false });
   };
 
@@ -347,8 +310,6 @@ export default function BrowsePage() {
                   type="button"
                   onClick={() => {
                     setDraftSearch("");
-                    setSearchQuery("");
-                    setPage(1);
                     updateUrl({ q: "", page: 1 });
                   }}
                   className="px-3 text-gray-400 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-700 transition-colors"
@@ -376,7 +337,7 @@ export default function BrowsePage() {
             >
               <SlidersHorizontal size={14} className="text-gray-600 dark:text-gray-600" />
               <span className="text-gray-800 dark:text-gray-800">Filters</span>
-              {(priceRange.min || priceRange.max) && (
+              {(minPrice || maxPrice) && (
                 <span className="bg-orange-500 text-white text-[10px] w-4 h-4 rounded-full flex items-center justify-center font-black animate-pulse">
                   1
                 </span>
@@ -407,9 +368,7 @@ export default function BrowsePage() {
               <h3 className="font-bold text-gray-900 dark:text-gray-900 text-sm tracking-wide">Select Price Range</h3>
               <button
                 onClick={() => {
-                  setPriceRange({ min: "", max: "" });
                   setShowFilters(false);
-                  setPage(1);
                   updateUrl({ minPrice: "", maxPrice: "", page: 1 });
                 }}
                 className="text-gray-400 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-700 p-1 rounded-lg transition-colors"
@@ -419,7 +378,7 @@ export default function BrowsePage() {
             </div>
             <div className="flex flex-wrap gap-2">
               {PRICE_RANGES.map((range) => {
-                const isSelected = priceRange.min === range.min && priceRange.max === range.max;
+                const isSelected = minPrice === range.min && maxPrice === range.max;
                 return (
                   <button
                     key={range.label}
@@ -443,7 +402,7 @@ export default function BrowsePage() {
           <div className="text-sm font-semibold text-gray-700 dark:text-gray-700">
             Results for <span className="text-orange-500">“{displayTitle}”</span>
           </div>
-          {(searchQuery || selectedCat || sort || priceRange.min || priceRange.max) && (
+          {(searchQuery || selectedCat || sort || minPrice || maxPrice) && (
             <button
               onClick={clearFilters}
               className="text-xs font-semibold text-gray-500 dark:text-gray-500 hover:text-orange-500 transition-colors"
@@ -467,7 +426,6 @@ export default function BrowsePage() {
             currentPage={page}
             totalPages={totalPages}
             onPageChange={(p) => {
-              setPage(p);
               updateUrl({ page: p });
             }}
             showTotal={totalCount}
@@ -476,5 +434,21 @@ export default function BrowsePage() {
         )}
       </div>
     </div>
+  );
+}
+
+// Global Amazon-Level Next.js Hydration Shell Export
+export default function BrowsePage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="animate-pulse flex flex-col items-center gap-4">
+          <div className="h-12 w-48 bg-gray-200 rounded-full"></div>
+          <div className="h-4 w-32 bg-gray-200 rounded-full"></div>
+        </div>
+      </div>
+    }>
+      <BrowsePageContent />
+    </Suspense>
   );
 }
