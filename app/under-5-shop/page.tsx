@@ -1,6 +1,6 @@
 import { getUnderFiveShop } from "@/lib/aliexpress";
 import ProductCard from "@/components/ProductCard";
-import UnderFiveDropdown from "@/components/UnderFiveDropdown"; // FIXED: Separate Client Dropdown
+import UnderFiveDropdown from "@/components/UnderFiveDropdown"; 
 import Link from "next/link";
 
 export const metadata = {
@@ -9,7 +9,7 @@ export const metadata = {
 };
 
 const filters = [
-  { label: "✨ All Deals", key: "useful gadgets smart tools kitchen lifestyle hot gadgets" },
+  { label: "✨ All Deals", key: "gadgets" },
   { label: "💍 Luxury Rings", key: "luxury rings adjustable couple titanium steel ring" },
   { label: "📿 Necklaces & Pendants", key: "pendant necklace choker chain minimalist sterling silver" },
   { label: "✨ Bracelets & Bangles", key: "charm bracelet bangle cuff leather beaded bracelets" },
@@ -45,9 +45,10 @@ export default async function UnderFiveShopPage({
   const resolvedParams = await searchParams;
   const currentPage = parseInt(resolvedParams.page || "1", 10);
   const currentSort = resolvedParams.sort || "VOLUME_DESC";
-  
+
   const rawCat = resolvedParams.cat || "";
-  const currentKeyword = rawCat ? decodeURIComponent(rawCat) : "useful gadgets smart tools kitchen lifestyle hot gadgets";
+  // FIXED: Stuffed heavy phrase removed to avoid hitting 0 results from AliExpress API
+  const currentKeyword = rawCat ? decodeURIComponent(rawCat) : "gadgets";
 
   const data = await getUnderFiveShop({
     page: currentPage,
@@ -77,7 +78,6 @@ export default async function UnderFiveShopPage({
           Select Category:
         </label>
         <div className="relative w-full">
-          {/* Client Component Dropdown Injected Safely */}
           <UnderFiveDropdown 
             filters={filters} 
             currentKeyword={currentKeyword} 
