@@ -270,16 +270,10 @@ export async function getUnderFiveShop(options: {
       sort: "VOLUME_DESC"
     });
   }
-  if (result.products && result.products.length > 0) {
-    result.products = result.products.filter(p => {
-      const price = parseFloat(p.sale_price || "0");
-      return price > 0 && price <= 12.00;
-    });
-  }
   return result;
 }
 
-// ─── Search Products (PREMIUM DIVERSIFIED UPDATE) ───────────────────────────
+// ─── Search Products (MAX DIVERSE BLENDED LAYER) ───────────────────────────
 export async function searchProducts(
   keywords: string,
   options: {
@@ -290,6 +284,7 @@ export async function searchProducts(
     maxPrice?: string;
     sort?: string;
     seed?: number;
+    isGlobalBrowse?: boolean; // New flag to force multi-category matrix blending
   } = {}
 ): Promise<ProductQueryResult> {
   const page = Math.max(1, options.page || 1);
@@ -305,31 +300,74 @@ export async function searchProducts(
 
     const catLower = options.categoryId.toLowerCase();
     if (catLower.includes("electronic") || targetCategoryIds === "6" || targetCategoryIds === "63") {
-      const electronicsPool = [
-        "4k projector ultra", "mechanical keyboard switches", "action camera wireless",
-        "smart bluetooth speaker v5.3", "gaming mouse rgb premium", "dual lens dash cam vehicle"
-      ];
+      const electronicsPool = ["4k projector ultra", "mechanical keyboard rgb", "action camera wire", "smart bluetooth speaker"];
       baseKeyword = electronicsPool[(page + activeSeed) % electronicsPool.length];
     } else if (catLower.includes("phone") || catLower.includes("mobile") || targetCategoryIds === "509") {
-      const mobilePool = [
-        "smartphone flagship 5g", "android smartphone unblocked", "fast charging powerbank 30w",
-        "magnetic wireless charger stand", "noise cancelling headphones wireless"
-      ];
+      const mobilePool = ["smartphone flagship 5g", "fast charging powerbank", "magnetic wireless charger"];
       baseKeyword = mobilePool[(page + activeSeed) % mobilePool.length];
     } else if (!baseKeyword) {
       baseKeyword = mappingResult.keywordFallback || "top trending choices";
     }
   }
 
-  // 💎 FIX: Jab user All Products par ho (No filter applied) to max diverse keyword allocation engine chalayen
-  if (!options.categoryId && (!baseKeyword || baseKeyword.toLowerCase().includes("trending") || baseKeyword.toLowerCase().includes("best seller"))) {
-    const macroGlobalPool = [
-      "smart electronics gadgets", "men sports fashion shoes", "luxury design watches quartz",
-      "home intelligent electronics led", "kitchen smart accessories utensils", "unlocked cellular android smartphones",
-      "women luxury diamond jewelry", "portable lifestyle gadgets smart", "computer component gaming mechanical",
-      "wireless sound system ambient", "outdoor sports tactical backpack", "car dashcam intelligent radar"
+  // 💎 CRITICAL FIX: Target if page is generic "All Products" or request has global flag
+  const isAllProductsRequest = !options.categoryId && (!baseKeyword || baseKeyword === "MIXED_GLOBAL_REQUEST" || baseKeyword.toLowerCase().includes("trending"));
+
+  if (isAllProductsRequest) {
+    // We execute a Parallel Matrix Fetch to pull multiple completely distinct niches and combine them onto ONE single page!
+    const coreNiches = [
+      "unlocked smartphone 5g",
+      "luxury quartz chronograph watch",
+      "smart kitchen accessories gadgets",
+      "men fashion sneaker athletic",
+      "wireless noise cancelling earbuds"
     ];
-    baseKeyword = macroGlobalPool[(page + activeSeed) % macroGlobalPool.length];
+
+    try {
+      // Fetch subsets matching the strict range parallelly to ensure true grid blending variety
+      const sliceSize = Math.ceil(pageSize / coreNiches.length);
+      const settledPromises = await Promise.all(
+        coreNiches.map(async (nicheKeyword) => {
+          const apiParams: Record<string, string> = {
+            keywords: nicheKeyword,
+            page_no: String(page),
+            page_size: String(sliceSize),
+          };
+          if (options.minPrice) apiParams.min_sale_price = options.minPrice;
+          if (options.maxPrice) apiParams.max_sale_price = options.maxPrice;
+          if (options.sort) apiParams.sort = options.sort;
+
+          const microData = await callApi("aliexpress.affiliate.product.query", apiParams);
+          const rawNodes = extractRawProducts(microData?.["aliexpress_affiliate_product_query_response"]?.resp_result?.result);
+          return Array.isArray(rawNodes) ? rawNodes.map(parseProduct) : [];
+        })
+      );
+
+      // Flatten and completely shuffle the blend matrix so items mix flawlessly together
+      let blendedPool = settledPromises.flat();
+
+      // Double-enforce client-side price filter checking
+      if (options.minPrice || options.maxPrice) {
+        const strictMin = options.minPrice ? parseFloat(options.minPrice) : 0;
+        const strictMax = options.maxPrice ? parseFloat(options.maxPrice) : Infinity;
+        blendedPool = blendedPool.filter(p => {
+          const cost = parseFloat(p.sale_price || p.app_sale_price || "0");
+          return cost >= strictMin && cost <= strictMax;
+        });
+      }
+
+      // Interleave/shuffle rows based on seed string parameters
+      blendedPool.sort(() => 0.5 - Math.random());
+
+      if (blendedPool.length > 5) {
+        syncProductsToCache(blendedPool).catch(e => console.error(e));
+        return { products: blendedPool, totalPage: 200, currentPage: page, totalCount: 10000 };
+      }
+    } catch (err) {
+      console.error("Blended fallback error, falling back to direct search routing", err);
+    }
+    // Fallback if matrix block fails
+    baseKeyword = "smart premium gadgets electronics";
   }
 
   const effectiveKeyword = baseKeyword;
@@ -340,30 +378,6 @@ export async function searchProducts(
 
   const memCached = cache.get<ProductQueryResult>(queryKey);
   if (memCached) return memCached;
-
-  const { data: qCache } = await (supabase.from("cached_searches") as any)
-    .select("product_ids")
-    .eq("query_key", queryKey)
-    .maybeSingle();
-
-  if (qCache && qCache.product_ids && Array.isArray(qCache.product_ids) && qCache.product_ids.length > 0) {
-    const hydProducts = await getCachedProductsByIds(qCache.product_ids);
-    if (hydProducts && hydProducts.length > 0) {
-      // Pricing local filtering layer check inside active cache hit matching array maps
-      let finalPool = [...hydProducts];
-      if (options.minPrice || options.maxPrice) {
-        const mxMin = options.minPrice ? parseFloat(options.minPrice) : 0;
-        const mxMax = options.maxPrice ? parseFloat(options.maxPrice) : Infinity;
-        finalPool = finalPool.filter(p => {
-          const pr = parseFloat(p.sale_price || p.app_sale_price || "0");
-          return pr >= mxMin && pr <= mxMax;
-        });
-      }
-      if (finalPool.length > 0) {
-        return { products: finalPool, totalPage: 200, currentPage: page, totalCount: 10000 };
-      }
-    }
-  }
 
   const params: Record<string, string> = {
     keywords: effectiveKeyword,
@@ -379,7 +393,6 @@ export async function searchProducts(
   let resp = data?.["aliexpress_affiliate_product_query_response"]?.resp_result;
   let rawProducts = extractRawProducts(resp?.result);
 
-  // 🛠️ RELAXATION FALLBACK FIX: If API strict matching blocks items, immediately query open scope without dropping parameters context
   if (!rawProducts || rawProducts.length === 0) {
     const relaxParams = { ...params };
     delete relaxParams.min_sale_price;
@@ -388,46 +401,29 @@ export async function searchProducts(
     rawProducts = extractRawProducts(backupData?.["aliexpress_affiliate_product_query_response"]?.resp_result?.result);
   }
 
-  try {
-    if (!rawProducts || rawProducts.length === 0) {
-      return { products: [], totalPage: 1, currentPage: page, totalCount: 0 };
-    }
-
-    let parsedProducts = rawProducts.map(parseProduct);
-
-    // 🎯 CRITICAL ACCURATE FILTERING LAYER: Local client sorting arrays for custom user parameters range execution
-    if (options.minPrice || options.maxPrice) {
-      const targetMin = options.minPrice ? parseFloat(options.minPrice) : 0;
-      const targetMax = options.maxPrice ? parseFloat(options.maxPrice) : Infinity;
-      const targetFiltered = parsedProducts.filter(p => {
-        const itemPrice = parseFloat(p.sale_price || p.app_sale_price || "0");
-        return itemPrice >= targetMin && itemPrice <= targetMax;
-      });
-      if (targetFiltered.length > 0) {
-        parsedProducts = targetFiltered;
-      }
-    }
-
-    const totalCount = Number(resp?.result?.total_record_count || parsedProducts.length || 10000);
-    const totalPage = Math.min(Math.ceil(totalCount / pageSize), 200);
-
-    const resultPayload: ProductQueryResult = { products: parsedProducts, totalPage, currentPage: page, totalCount };
-    cache.set(queryKey, resultPayload, ONE_HOUR);
-
-    syncProductsToCache(parsedProducts).then(async () => {
-      const pIdsArray = parsedProducts.map(p => p.product_id);
-      await (supabase.from("cached_searches") as any).upsert({
-        query_key: queryKey,
-        product_ids: pIdsArray,
-        updated_at: new Date().toISOString()
-      }, { onConflict: "query_key" });
-    }).catch(e => console.error(e));
-
-    return resultPayload;
-  } catch (err) {
-    console.error(err);
+  if (!rawProducts || rawProducts.length === 0) {
     return { products: [], totalPage: 1, currentPage: page, totalCount: 0 };
   }
+
+  let parsedProducts = rawProducts.map(parseProduct);
+
+  if (options.minPrice || options.maxPrice) {
+    const targetMin = options.minPrice ? parseFloat(options.minPrice) : 0;
+    const targetMax = options.maxPrice ? parseFloat(options.maxPrice) : Infinity;
+    parsedProducts = parsedProducts.filter(p => {
+      const itemPrice = parseFloat(p.sale_price || p.app_sale_price || "0");
+      return itemPrice >= targetMin && itemPrice <= targetMax;
+    });
+  }
+
+  const totalCount = Number(resp?.result?.total_record_count || parsedProducts.length || 10000);
+  const totalPage = Math.min(Math.ceil(totalCount / pageSize), 200);
+
+  const resultPayload: ProductQueryResult = { products: parsedProducts, totalPage, currentPage: page, totalCount };
+  cache.set(queryKey, resultPayload, ONE_HOUR);
+  syncProductsToCache(parsedProducts).catch(e => console.error(e));
+
+  return resultPayload;
 }
 
 export async function getHotProducts(
@@ -500,20 +496,6 @@ export async function getProductDetail(productId: string): Promise<AliProduct | 
 
     const product = parseProduct(rawProduct);
     cache.set(cacheKey, product, FIVE_HOURS);
-    await (supabase.from("cached_products") as any).upsert({
-      product_id: productId,
-      slug: `product-${productId}`,
-      title: product.product_title,
-      primary_image_url: product.product_main_image_url,
-      price: parseFloat(product.original_price) || 0,
-      sale_price: parseFloat(product.sale_price) || 0,
-      rating: parseFloat(product.evaluate_rate) || 4.5,
-      affiliate_url: product.promotion_link,
-      source_payload: product as any,
-      category_slug: product.first_level_category_id || "",
-      source: "aliexpress",
-      updated_at: new Date().toISOString()
-    }, { onConflict: "product_id" });
     return product;
   } catch (err) {
     return null;
@@ -531,7 +513,7 @@ export async function getBrowseProducts(options: {
   const page = Math.max(1, options.page || 1);
   const pageSize = Math.min(options.pageSize || 50, 50);
   const activeSeed = options.seed || Math.floor(Math.random() * 1000);
-  const keyword = options.keyword || "";
+  const keyword = options.keyword || "MIXED_GLOBAL_REQUEST";
   return searchProducts(keyword, { page, pageSize, categoryId: options.categoryId, sort: options.sort, seed: activeSeed });
 }
 
@@ -544,10 +526,6 @@ export async function getDealsProducts(options: {
   const page = Math.max(1, options.page || 1);
   const pageSize = Math.min(options.pageSize || 50, 50);
   const activeSeed = options.seed || Math.floor(Math.random() * 100);
-  const keyword = "sale clearance clearance items discount";
-
-  if (page % 2 === 0) {
-    return getHotProducts(keyword, { page, pageSize, categoryId: options.categoryId, seed: activeSeed });
-  }
+  const keyword = "sale clearance items discount";
   return searchProducts(keyword, { page, pageSize, categoryId: options.categoryId, sort: "SALE_PRICE_ASC", seed: activeSeed });
 }
