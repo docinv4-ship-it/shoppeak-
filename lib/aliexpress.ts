@@ -1,11 +1,13 @@
 import crypto from "crypto";
 import cache, { FIVE_HOURS, ONE_HOUR } from "./cache";
 import { supabase } from "./db";
+import { CATEGORIES } from "@/data/categories";
 
 const APP_KEY = process.env.ALIEXPRESS_APP_KEY!;
 const APP_SECRET = process.env.ALIEXPRESS_APP_SECRET!;
 const AFFILIATE_ID = process.env.ALIEXPRESS_AFFILIATE_ID || "ShopPeak666";
-const API_BASE = process.env.ALIEXPRESS_API_BASE_URL || "https://api-sg.aliexpress.com/sync";
+const API_BASE =
+  process.env.ALIEXPRESS_API_BASE_URL || "https://api-sg.aliexpress.com/sync";
 
 const THIRTY_MINUTES = 30 * 60 * 1000;
 const TWO_HOURS = 2 * 60 * 60 * 1000;
@@ -13,7 +15,13 @@ const MAX_PAGE_SIZE = 50;
 const MAX_TOTAL_PAGES = 2000;
 const MIN_RESULTS_BEFORE_WIDENING = 12;
 
-type SectionKind = "search" | "browse" | "trending" | "deals" | "new-arrivals" | "budget";
+type SectionKind =
+  | "search"
+  | "browse"
+  | "trending"
+  | "deals"
+  | "new-arrivals"
+  | "budget";
 
 export interface AliProduct {
   product_id: string;
@@ -67,16 +75,22 @@ interface QueryOptions {
   section?: SectionKind;
 }
 
-interface Profile {
+interface CategoryProfile {
   canonical: string;
-  aliCategoryId: string;
+  categoryId: string;
+  categoryName: string;
+  categorySlug: string;
   keywords: string[];
+  subKeywords: string[];
+  strictKeywords: string[];
+  familyKeywords: string[];
+  aliases: string[];
 }
 
 interface QueryPlan {
   section: SectionKind;
   keywordCandidates: string[];
-  aliCategoryId: string;
+  categoryId: string;
   page: number;
   pageSize: number;
   sort?: string;
@@ -84,12 +98,13 @@ interface QueryPlan {
   maxPrice?: string;
   seed: number;
   useHotApiFirst?: boolean;
+  categoryProfile: CategoryProfile;
 }
 
-const CATEGORY_POOLS: Record<string, string[]> = {
+const CATEGORY_FAMILY_FALLBACKS: Record<string, string[]> = {
   electronics: [
     "smartphone 5g",
-    "bluetooth earbuds",
+    "wireless earbuds",
     "wireless headphones",
     "tablet pc",
     "gaming headset",
@@ -98,15 +113,18 @@ const CATEGORY_POOLS: Record<string, string[]> = {
     "charger cable",
     "mechanical keyboard",
     "mini projector",
+    "computer accessory",
+    "audio device",
   ],
   phones: [
     "smartphone 5g",
-    "mobile case",
+    "android phone",
+    "mobile phone",
+    "phone case",
     "screen protector",
     "wireless charger",
     "power bank",
     "phone holder",
-    "phone stand",
     "earbuds",
   ],
   gadgets: [
@@ -129,6 +147,7 @@ const CATEGORY_POOLS: Record<string, string[]> = {
     "t shirt",
     "watch",
     "sunglasses",
+    "fashion accessories",
   ],
   home: [
     "kitchen tools",
@@ -139,6 +158,8 @@ const CATEGORY_POOLS: Record<string, string[]> = {
     "bathroom accessory",
     "curtain",
     "bed sheet",
+    "home appliance",
+    "furniture",
   ],
   beauty: [
     "skincare",
@@ -279,6 +300,7 @@ const CATEGORY_POOLS: Record<string, string[]> = {
     "fashion jewelry",
     "gift jewelry",
     "ring",
+    "moissanite",
   ],
   lighting: [
     "led lamp",
@@ -299,6 +321,8 @@ const CATEGORY_POOLS: Record<string, string[]> = {
     "portable heater",
     "fan",
     "home appliance",
+    "water dispenser",
+    "electric kettle",
   ],
   industrial: [
     "cnc tool",
@@ -333,21 +357,21 @@ const CATEGORY_POOLS: Record<string, string[]> = {
 };
 
 const CATEGORY_ALIASES: Record<string, string> = {
-  "phones & smartphones": "phones",
-  "mobile phones": "phones",
-  "consumer electronics": "electronics",
-  "home furniture": "home",
-  "home appliances": "appliances",
-  "lighting & chandeliers": "lighting",
-  "jewelry & watches": "jewelry",
-  "fashion & style": "fashion",
-  "health & beauty": "beauty",
-  "outdoor & sports": "sports",
-  "industrial & machinery": "industrial",
-  "professional audio": "audio",
-  "security & cctv": "industrial",
-  "solar & energy": "solar",
-  "medical & mobility": "health",
+  "phones & smartphones": "phones-smartphones",
+  "mobile phones": "phones-smartphones",
+  "consumer electronics": "consumer-electronics",
+  "home furniture": "home-furniture",
+  "home appliances": "home-appliances",
+  "lighting & chandeliers": "lighting-chandeliers",
+  "jewelry & watches": "jewelry-watches",
+  "fashion & style": "fashion-wearables",
+  "health & beauty": "health-beauty",
+  "outdoor & sports": "outdoor-recreational",
+  "industrial & machinery": "machinery-industrial",
+  "professional audio": "professional-audio",
+  "security & cctv": "security-systems",
+  "solar & energy": "solar-energy",
+  "medical & mobility": "medical-mobility",
 };
 
 const BROWSE_POOLS = [
@@ -417,13 +441,17 @@ const BUDGET_POOLS = [
 function nowTimestamp(): string {
   const d = new Date();
   const p = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(
+    d.getHours()
+  )}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
 }
 
 function createTimeoutSignal(ms: number): AbortSignal {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), ms);
-  controller.signal.addEventListener("abort", () => clearTimeout(timer), { once: true });
+  controller.signal.addEventListener("abort", () => clearTimeout(timer), {
+    once: true,
+  });
   return controller.signal;
 }
 
@@ -465,11 +493,14 @@ function hashInt(input: string): number {
 function mapSort(sort?: string): string | undefined {
   const s = normalizeText(sort || "");
   if (!s) return undefined;
-  if (s.includes("price low") || s.includes("low to high") || s.includes("asc")) return "SALE_PRICE_ASC";
-  if (s.includes("price high") || s.includes("high to low") || s.includes("desc")) return "SALE_PRICE_DESC";
+  if (s.includes("price low") || s.includes("low to high") || s.includes("asc"))
+    return "SALE_PRICE_ASC";
+  if (s.includes("price high") || s.includes("high to low") || s.includes("desc"))
+    return "SALE_PRICE_DESC";
   if (s.includes("discount")) return "DISCOUNT_DESC";
   if (s.includes("new")) return "NEW_DESC";
-  if (s.includes("popular") || s.includes("recommended") || s.includes("hot")) return "VOLUME_DESC";
+  if (s.includes("popular") || s.includes("recommended") || s.includes("hot"))
+    return "VOLUME_DESC";
   return sort;
 }
 
@@ -525,9 +556,14 @@ function extractRawProducts(root: any): any[] {
     if (Array.isArray(candidate)) return candidate;
     if (typeof candidate === "object") {
       if (Array.isArray(candidate.product)) return candidate.product;
-      if (candidate.product) return Array.isArray(candidate.product) ? candidate.product : [candidate.product];
-      if (candidate.item) return Array.isArray(candidate.item) ? candidate.item : [candidate.item];
-      if (candidate.items) return Array.isArray(candidate.items) ? candidate.items : [candidate.items];
+      if (candidate.product)
+        return Array.isArray(candidate.product)
+          ? candidate.product
+          : [candidate.product];
+      if (candidate.item)
+        return Array.isArray(candidate.item) ? candidate.item : [candidate.item];
+      if (candidate.items)
+        return Array.isArray(candidate.items) ? candidate.items : [candidate.items];
     }
   }
 
@@ -556,50 +592,119 @@ function rotateBySeed<T>(items: T[], seed: number): T[] {
   return [...items.slice(offset), ...items.slice(0, offset)];
 }
 
-function buildProfile(categoryInput?: string): Profile {
-  const raw = normalizeText(categoryInput || "");
-  if (!raw) {
-    return { canonical: "all", aliCategoryId: "", keywords: [] };
-  }
-
-  if (/^\d+$/.test(raw)) {
-    return { canonical: `category-${raw}`, aliCategoryId: raw, keywords: [] };
-  }
-
-  const aliasKey =
-    Object.keys(CATEGORY_ALIASES).find((alias) => raw.includes(alias) || alias.includes(raw)) || raw;
-
-  const canonical = CATEGORY_ALIASES[aliasKey] || aliasKey;
-  const keywords = CATEGORY_POOLS[canonical] || CATEGORY_POOLS[raw] || [];
-  const aliCategoryId = buildKnownAliCategoryId(raw, canonical);
-
-  return { canonical, aliCategoryId, keywords };
+function normalizeCategoryToken(input: string): string {
+  return normalizeText(input).replace(/\s+/g, "-");
 }
 
-function buildKnownAliCategoryId(raw: string, canonical: string): string {
-  const known: Record<string, string> = {
-    jewelry: "36",
-    lighting: "39",
-    appliances: "6",
-    industrial: "1420",
-    sports: "18",
-    fashion: "320",
-    beauty: "66",
-    solar: "1420",
-    audio: "63",
-    health: "66",
-    phones: "509",
-    electronics: "0",
-    home: "0",
-    office: "0",
-    toys: "0",
-    pets: "0",
-    travel: "0",
-    tools: "0",
-    accessories: "0",
-  };
+function resolveCategoryProfile(categoryInput?: string): CategoryProfile {
+  const raw = normalizeText(categoryInput || "");
+  const token = normalizeCategoryToken(categoryInput || "");
+  const lookupBySlug = CATEGORIES.find((c) => c.slug === token);
+  const lookupByName = CATEGORIES.find(
+    (c) => normalizeText(c.name) === raw || normalizeText(c.name).includes(raw) || raw.includes(normalizeText(c.name))
+  );
+  const lookupById = CATEGORIES.find((c) => c.id === raw);
 
-  return known[canonical] || known[raw] || "";
+  const category = lookupBySlug || lookupByName || lookupById;
+  if (category) {
+    const baseKeywords = uniqueStrings([
+      category.name,
+      category.slug.replace(/-/g, " "),
+      ...(category.keywords || []),
+      ...category.subcategories.flatMap((s) => [s.name, s.slug.replace(/-/g, " "), ...(s.keywords || [])]),
+    ]);
+
+    return {
+      canonical: category.slug,
+      categoryId: category.id,
+      categoryName: category.name,
+      categorySlug: category.slug,
+      keywords: uniqueStrings([
+        ...category.keywords,
+        category.name,
+        category.slug.replace(/-/g, " "),
+      ]),
+      subKeywords: uniqueStrings(
+        category.subcategories.flatMap((s) => [
+          s.name,
+          s.slug.replace(/-/g, " "),
+          ...(s.keywords || []),
+        ])
+      ),
+      strictKeywords: baseKeywords,
+      familyKeywords: baseKeywords,
+      aliases: uniqueStrings([
+        category.slug,
+        category.name,
+        category.name.toLowerCase(),
+        category.slug.replace(/-/g, " "),
+      ]),
+    };
+  }
+
+  const aliasSlug =
+    CATEGORY_ALIASES[raw] ||
+    CATEGORY_ALIASES[token] ||
+    CATEGORY_ALIASES[raw.replace(/\s+/g, " ")] ||
+    "";
+
+  const aliasCategory =
+    (aliasSlug && CATEGORIES.find((c) => c.slug === aliasSlug)) || undefined;
+
+  if (aliasCategory) {
+    const baseKeywords = uniqueStrings([
+      aliasCategory.name,
+      aliasCategory.slug.replace(/-/g, " "),
+      ...(aliasCategory.keywords || []),
+      ...aliasCategory.subcategories.flatMap((s) => [s.name, s.slug.replace(/-/g, " "), ...(s.keywords || [])]),
+    ]);
+
+    return {
+      canonical: aliasCategory.slug,
+      categoryId: aliasCategory.id,
+      categoryName: aliasCategory.name,
+      categorySlug: aliasCategory.slug,
+      keywords: uniqueStrings([
+        ...aliasCategory.keywords,
+        aliasCategory.name,
+        aliasCategory.slug.replace(/-/g, " "),
+      ]),
+      subKeywords: uniqueStrings(
+        aliasCategory.subcategories.flatMap((s) => [
+          s.name,
+          s.slug.replace(/-/g, " "),
+          ...(s.keywords || []),
+        ])
+      ),
+      strictKeywords: baseKeywords,
+      familyKeywords: baseKeywords,
+      aliases: uniqueStrings([
+        aliasCategory.slug,
+        aliasCategory.name,
+        aliasCategory.name.toLowerCase(),
+        aliasCategory.slug.replace(/-/g, " "),
+      ]),
+    };
+  }
+
+  const fallbackKey =
+    raw || token || "all";
+
+  const family = CATEGORY_FAMILY_FALLBACKS[fallbackKey] || CATEGORY_FAMILY_FALLBACKS[
+    Object.keys(CATEGORY_FAMILY_FALLBACKS).find((k) => fallbackKey.includes(k) || k.includes(fallbackKey)) || ""
+  ] || [];
+
+  return {
+    canonical: fallbackKey,
+    categoryId: "",
+    categoryName: fallbackKey,
+    categorySlug: fallbackKey,
+    keywords: family,
+    subKeywords: [],
+    strictKeywords: family,
+    familyKeywords: family,
+    aliases: uniqueStrings([fallbackKey, fallbackKey.replace(/-/g, " ")]),
+  };
 }
 
 function expandKeyword(keyword: string): string[] {
@@ -640,7 +745,12 @@ function expandKeyword(keyword: string): string[] {
     variants.add("smartphone accessory");
   }
 
-  if (text.includes("necklace") || text.includes("ring") || text.includes("bracelet") || text.includes("earring")) {
+  if (
+    text.includes("necklace") ||
+    text.includes("ring") ||
+    text.includes("bracelet") ||
+    text.includes("earring")
+  ) {
     variants.add("jewelry");
     variants.add("fashion jewelry");
     variants.add("women jewelry");
@@ -651,6 +761,7 @@ function expandKeyword(keyword: string): string[] {
     variants.add("home decor");
     variants.add("kitchen tools");
     variants.add("home appliance");
+    variants.add("furniture");
   }
 
   if (text.includes("beauty") || text.includes("skincare") || text.includes("makeup")) {
@@ -660,12 +771,18 @@ function expandKeyword(keyword: string): string[] {
     variants.add("face mask");
   }
 
+  if (text.includes("solar") || text.includes("energy")) {
+    variants.add("solar panel");
+    variants.add("solar inverter");
+    variants.add("power station");
+  }
+
   return [...variants];
 }
 
 function buildCandidateKeywords(plan: QueryPlan): string[] {
   const base = normalizeText(plan.keywordCandidates[0] || "");
-  const profile = buildProfile(plan.aliCategoryId);
+  const profile = plan.categoryProfile;
 
   const sectionPools: Record<SectionKind, string[]> = {
     search: [],
@@ -683,8 +800,19 @@ function buildCandidateKeywords(plan: QueryPlan): string[] {
   }
 
   candidates.push(...plan.keywordCandidates.slice(1).flatMap(expandKeyword));
-  candidates.push(...profile.keywords);
-  candidates.push(...sectionPools[plan.section]);
+
+  if (profile.familyKeywords.length) {
+    candidates.push(...profile.familyKeywords);
+    candidates.push(...profile.strictKeywords);
+  }
+
+  if (profile.keywords.length) {
+    candidates.push(...profile.keywords);
+  }
+
+  if (profile.subKeywords.length) {
+    candidates.push(...profile.subKeywords);
+  }
 
   if (plan.section === "search" && base) {
     candidates.push(`${base} accessories`, `${base} gadget`, `${base} compatible`);
@@ -733,20 +861,17 @@ function buildCandidateKeywords(plan: QueryPlan): string[] {
   }
 
   if (plan.section === "budget") {
-    candidates.push(
-      "cheap gadget",
-      "budget accessory",
-      "mini tool",
-      "small kitchen tool"
-    );
+    candidates.push("cheap gadget", "budget accessory", "mini tool", "small kitchen tool");
   }
 
   const unique = uniqueStrings(candidates);
   if (!unique.length) return ["smart gadget", "fashion item", "home product"];
+
   if (base) {
     const rest = unique.filter((k) => k !== base);
     return [base, ...rotateBySeed(rest, plan.seed)];
   }
+
   return rotateBySeed(unique, plan.seed);
 }
 
@@ -931,7 +1056,7 @@ function parseProduct(raw: Record<string, any>): AliProduct {
   return injectTrustLayer(parsed);
 }
 
-function scoreProduct(product: AliProduct, primaryQuery: string, seed: number): number {
+function scoreProduct(product: AliProduct, profile: CategoryProfile, primaryQuery: string, seed: number): number {
   const title = normalizeText(product.product_title || "");
   const query = normalizeText(primaryQuery || "");
   const qTokens = query.split(" ").filter(Boolean);
@@ -958,11 +1083,58 @@ function scoreProduct(product: AliProduct, primaryQuery: string, seed: number): 
     score += overlap * 55;
   }
 
+  const kwPool = uniqueStrings([
+    ...profile.strictKeywords,
+    ...profile.familyKeywords,
+    ...profile.keywords,
+    ...profile.subKeywords,
+  ]);
+
+  for (const kw of kwPool.slice(0, 20)) {
+    const k = normalizeText(kw);
+    if (!k) continue;
+    if (title.includes(k)) score += 45;
+  }
+
+  if (product.first_level_category_id && profile.categoryId && product.first_level_category_id === profile.categoryId) {
+    score += 120;
+  }
+
   if (product.is_top_choice) score += 60;
   if (product.is_verified_seller) score += 25;
   if (product.price_drop_alert) score += 20;
 
   return score;
+}
+
+function productMatchesCategory(product: AliProduct, profile: CategoryProfile): boolean {
+  if (!profile.categoryId && !profile.strictKeywords.length) return true;
+
+  const title = normalizeText(product.product_title || "");
+  const pCatName = normalizeText(product.first_level_category_name || "");
+  const sCatName = normalizeText(product.second_level_category_name || "");
+  const pool = uniqueStrings([
+    ...profile.strictKeywords,
+    ...profile.familyKeywords,
+    ...profile.keywords,
+    ...profile.subKeywords,
+  ]);
+
+  if (profile.categoryId && product.first_level_category_id === profile.categoryId) return true;
+  if (profile.categoryId && product.second_level_category_id === profile.categoryId) return true;
+
+  if (pCatName && profile.categoryName && pCatName.includes(normalizeText(profile.categoryName))) return true;
+  if (sCatName && profile.categoryName && sCatName.includes(normalizeText(profile.categoryName))) return true;
+
+  const matchCount = pool.reduce((count, kw) => {
+    const k = normalizeText(kw);
+    if (!k) return count;
+    if (title.includes(k)) return count + 1;
+    return count;
+  }, 0);
+
+  const threshold = profile.categoryId ? 1 : 2;
+  return matchCount >= threshold;
 }
 
 function filterByPrice(products: AliProduct[], minPrice?: string, maxPrice?: string): AliProduct[] {
@@ -1010,6 +1182,35 @@ function enforceDiversity(products: AliProduct[], limit: number): AliProduct[] {
   return result;
 }
 
+function strictCategoryFilter(
+  products: AliProduct[],
+  profile: CategoryProfile,
+  minWanted: number
+): AliProduct[] {
+  if (!profile.categoryId && !profile.strictKeywords.length) return products;
+
+  const exact = products.filter((p) => productMatchesCategory(p, profile));
+  if (exact.length >= minWanted) return exact;
+
+  const relaxed = products.filter((p) => {
+    const title = normalizeText(p.product_title || "");
+    const kwPool = uniqueStrings([
+      ...profile.familyKeywords,
+      ...profile.keywords,
+      ...profile.subKeywords,
+    ]);
+    const hits = kwPool.reduce((count, kw) => {
+      const k = normalizeText(kw);
+      if (!k) return count;
+      if (title.includes(k)) return count + 1;
+      return count;
+    }, 0);
+    return hits >= 1;
+  });
+
+  return relaxed.length >= minWanted ? relaxed : exact.length ? exact : products;
+}
+
 async function syncProductsToCache(products: AliProduct[]) {
   if (!products.length) return;
 
@@ -1029,7 +1230,9 @@ async function syncProductsToCache(products: AliProduct[]) {
       updated_at: new Date().toISOString(),
     }));
 
-    await (supabase.from("cached_products") as any).upsert(rows, { onConflict: "product_id" });
+    await (supabase.from("cached_products") as any).upsert(rows, {
+      onConflict: "product_id",
+    });
   } catch (err) {
     console.error("[Cache Sync Error]", (err as Error).message);
   }
@@ -1103,7 +1306,7 @@ async function queryCatalog(plan: QueryPlan): Promise<ProductQueryResult> {
     `catalog:${plan.section}`,
     `page:${plan.page}`,
     `size:${plan.pageSize}`,
-    `cat:${plan.aliCategoryId || "all"}`,
+    `cat:${plan.categoryId || "all"}`,
     `sort:${plan.sort || "default"}`,
     `min:${plan.minPrice || "none"}`,
     `max:${plan.maxPrice || "none"}`,
@@ -1115,10 +1318,16 @@ async function queryCatalog(plan: QueryPlan): Promise<ProductQueryResult> {
   if (cached) return cached;
 
   const candidates = buildCandidateKeywords(plan);
-  const primaryCandidates = candidates.slice(0, plan.section === "search" ? 7 : 5);
-  const fallbackCandidates = candidates.slice(primaryCandidates.length, primaryCandidates.length + 8);
+  const primaryCandidates = candidates.slice(0, plan.section === "search" ? 8 : 5);
+  const fallbackCandidates = candidates.slice(
+    primaryCandidates.length,
+    primaryCandidates.length + 8
+  );
 
-  const batchSize = Math.max(8, Math.ceil(plan.pageSize / Math.max(primaryCandidates.length, 1)) + 2);
+  const batchSize = Math.max(
+    8,
+    Math.ceil(plan.pageSize / Math.max(primaryCandidates.length, 1)) + 2
+  );
   const primaryMethod: "search" | "hot" = plan.useHotApiFirst ? "hot" : "search";
 
   const firstPass = await Promise.all(
@@ -1128,7 +1337,7 @@ async function queryCatalog(plan: QueryPlan): Promise<ProductQueryResult> {
         keyword,
         page: plan.page + idx * 2,
         pageSize: batchSize,
-        aliCategoryId: plan.aliCategoryId,
+        aliCategoryId: plan.categoryId,
         sort: plan.sort,
         minPrice: plan.minPrice,
         maxPrice: plan.maxPrice,
@@ -1140,6 +1349,7 @@ async function queryCatalog(plan: QueryPlan): Promise<ProductQueryResult> {
   let totalCount = Math.max(...firstPass.map((x) => x.totalCount).filter(Boolean), 0);
 
   merged = filterByPrice(merged, plan.minPrice, plan.maxPrice);
+  merged = strictCategoryFilter(merged, plan.categoryProfile, MIN_RESULTS_BEFORE_WIDENING);
 
   if (merged.length < MIN_RESULTS_BEFORE_WIDENING) {
     const secondPass = await Promise.all(
@@ -1149,7 +1359,7 @@ async function queryCatalog(plan: QueryPlan): Promise<ProductQueryResult> {
           keyword,
           page: plan.page + idx + 1,
           pageSize: batchSize,
-          aliCategoryId: plan.aliCategoryId,
+          aliCategoryId: plan.categoryId,
           sort: plan.sort,
           minPrice: plan.minPrice,
           maxPrice: plan.maxPrice,
@@ -1163,34 +1373,76 @@ async function queryCatalog(plan: QueryPlan): Promise<ProductQueryResult> {
 
   if (merged.length < MIN_RESULTS_BEFORE_WIDENING && plan.section !== "budget") {
     const widerPass = await Promise.all(
-      rotateBySeed(BROWSE_POOLS, plan.seed).slice(0, 5).map((keyword, idx) =>
-        fetchBatchFromApi({
-          method: "search",
-          keyword,
-          page: plan.page + idx + 3,
-          pageSize: batchSize,
-          aliCategoryId: plan.aliCategoryId,
-          sort: plan.sort,
-          minPrice: plan.minPrice,
-          maxPrice: plan.maxPrice,
-        })
-      )
+      rotateBySeed(BROWSE_POOLS, plan.seed)
+        .slice(0, 5)
+        .map((keyword, idx) =>
+          fetchBatchFromApi({
+            method: "search",
+            keyword,
+            page: plan.page + idx + 3,
+            pageSize: batchSize,
+            aliCategoryId: plan.categoryId,
+            sort: plan.sort,
+            minPrice: plan.minPrice,
+            maxPrice: plan.maxPrice,
+          })
+        )
     );
 
     merged = merged.concat(widerPass.flatMap((x) => x.products));
     totalCount = Math.max(totalCount, ...widerPass.map((x) => x.totalCount).filter(Boolean), 0);
   }
 
+  merged = filterByPrice(merged, plan.minPrice, plan.maxPrice);
+  merged = strictCategoryFilter(merged, plan.categoryProfile, 1);
+
   const unique = enforceDiversity(merged, plan.pageSize);
   const primaryQuery = plan.keywordCandidates.find(Boolean) || candidates[0] || "";
-  const sorted = unique.sort((a, b) => scoreProduct(b, primaryQuery, plan.seed) - scoreProduct(a, primaryQuery, plan.seed));
-  const products = sorted.slice(0, plan.pageSize);
+  const sorted = unique.sort(
+    (a, b) =>
+      scoreProduct(b, plan.categoryProfile, primaryQuery, plan.seed) -
+      scoreProduct(a, plan.categoryProfile, primaryQuery, plan.seed)
+  );
+
+  let products = sorted.slice(0, plan.pageSize);
+
+  if (!products.length) {
+    const finalFallback = await Promise.all(
+      rotateBySeed(plan.categoryProfile.familyKeywords.length ? plan.categoryProfile.familyKeywords : BROWSE_POOLS, plan.seed)
+        .slice(0, 4)
+        .map((keyword, idx) =>
+          fetchBatchFromApi({
+            method: "search",
+            keyword,
+            page: plan.page + idx + 1,
+            pageSize: batchSize,
+            aliCategoryId: plan.categoryId,
+            sort: plan.sort,
+            minPrice: plan.minPrice,
+            maxPrice: plan.maxPrice,
+          })
+        )
+    );
+
+    const emergency = finalFallback.flatMap((x) => x.products);
+    const emergencyFiltered = strictCategoryFilter(
+      filterByPrice(emergency, plan.minPrice, plan.maxPrice),
+      plan.categoryProfile,
+      1
+    );
+    products = enforceDiversity(emergencyFiltered, plan.pageSize).slice(0, plan.pageSize);
+    totalCount = Math.max(totalCount, ...finalFallback.map((x) => x.totalCount).filter(Boolean), 0);
+  }
 
   if (!totalCount || totalCount < products.length) {
     totalCount = Math.max(products.length * 100, 10000);
   }
 
-  const totalPage = Math.min(Math.max(1, Math.ceil(totalCount / plan.pageSize)), MAX_TOTAL_PAGES);
+  const totalPage = Math.min(
+    Math.max(1, Math.ceil(totalCount / plan.pageSize)),
+    MAX_TOTAL_PAGES
+  );
+
   const result: ProductQueryResult = {
     products,
     totalPage,
@@ -1211,14 +1463,14 @@ export async function searchProducts(
   const page = Math.max(1, options.page || 1);
   const pageSize = Math.min(options.pageSize || MAX_PAGE_SIZE, MAX_PAGE_SIZE);
   const normalizedSort = mapSort(options.sort);
-  const profile = buildProfile(options.categoryId || "");
+  const profile = resolveCategoryProfile(options.categoryId || "");
   const seed = options.seed || hashInt(`${keywords}|${page}|${profile.canonical}`);
   const baseKeyword = normalizeText(keywords || "").trim();
 
   const keywordCandidates = uniqueStrings([
     baseKeyword,
     ...expandKeyword(baseKeyword),
-    ...(profile.keywords || []),
+    ...(profile.familyKeywords || []),
     ...(options.isGlobalBrowse ? BROWSE_POOLS : []),
   ]);
 
@@ -1230,13 +1482,13 @@ export async function searchProducts(
       keywordCandidates.length > 0
         ? keywordCandidates
         : section === "trending"
-          ? TRENDING_POOLS
-          : section === "deals"
-            ? DEALS_POOLS
-            : section === "new-arrivals"
-              ? NEW_ARRIVALS_POOLS
-              : BROWSE_POOLS,
-    aliCategoryId: profile.aliCategoryId,
+        ? TRENDING_POOLS
+        : section === "deals"
+        ? DEALS_POOLS
+        : section === "new-arrivals"
+        ? NEW_ARRIVALS_POOLS
+        : BROWSE_POOLS,
+    categoryId: profile.categoryId,
     page,
     pageSize,
     sort: normalizedSort,
@@ -1244,6 +1496,7 @@ export async function searchProducts(
     maxPrice: options.maxPrice,
     seed,
     useHotApiFirst: section === "trending",
+    categoryProfile: profile,
   };
 
   return queryCatalog(plan);
@@ -1255,24 +1508,25 @@ export async function getHotProducts(
 ): Promise<ProductQueryResult> {
   const page = Math.max(1, options.page || 1);
   const pageSize = Math.min(options.pageSize || MAX_PAGE_SIZE, MAX_PAGE_SIZE);
-  const profile = buildProfile(options.categoryId || "");
+  const profile = resolveCategoryProfile(options.categoryId || "");
   const seed = options.seed || hashInt(`${keywords || "hot"}|${page}|${profile.canonical}`);
 
   const candidates = uniqueStrings([
     ...(keywords ? expandKeyword(keywords) : TRENDING_POOLS),
     ...TRENDING_POOLS,
-    ...(profile.keywords || []),
+    ...(profile.familyKeywords || []),
   ]);
 
   const plan: QueryPlan = {
     section: "trending",
     keywordCandidates: rotateBySeed(candidates, seed),
-    aliCategoryId: profile.aliCategoryId,
+    categoryId: profile.categoryId,
     page,
     pageSize,
     sort: "VOLUME_DESC",
     seed,
     useHotApiFirst: true,
+    categoryProfile: profile,
   };
 
   const result = await queryCatalog(plan);
@@ -1327,7 +1581,11 @@ export async function getProductDetail(productId: string): Promise<AliProduct | 
     seed: hashInt(productId),
   });
 
-  const found = fallback.products.find((p) => p.product_id === productId) || fallback.products[0] || null;
+  const found =
+    fallback.products.find((p) => p.product_id === productId) ||
+    fallback.products[0] ||
+    null;
+
   if (found) cache.set(cacheKey, found, TWO_HOURS);
   return found;
 }
@@ -1342,7 +1600,9 @@ export async function getBrowseProducts(options: {
 } = {}): Promise<ProductQueryResult> {
   const page = Math.max(1, options.page || 1);
   const pageSize = Math.min(options.pageSize || MAX_PAGE_SIZE, MAX_PAGE_SIZE);
-  const seed = options.seed || hashInt(`browse|${page}|${options.categoryId || ""}|${options.keyword || ""}`);
+  const seed =
+    options.seed ||
+    hashInt(`browse|${page}|${options.categoryId || ""}|${options.keyword || ""}`);
 
   return searchProducts(options.keyword || "", {
     page,
