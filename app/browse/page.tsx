@@ -73,7 +73,7 @@ function BrowsePageContent() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
-  // Reactive Global Param Trackers
+  // Reactive URL Stream Controllers
   const searchQuery = searchParams.get("q") || "";
   const selectedCat = searchParams.get("cat") || "";
   const sort = searchParams.get("sort") || "";
@@ -81,19 +81,20 @@ function BrowsePageContent() {
   const maxPrice = searchParams.get("maxPrice") || "";
   const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10) || 1);
 
-  // Dynamic Data & UI Elements Pool
+  // Core States
   const [products, setProducts] = useState<AliProduct[]>([]);
   const [loading, setLoading] = useState(true);
   const [totalPages, setTotalPages] = useState(200);
   const [totalCount, setTotalCount] = useState(10000);
   const [showFilters, setShowFilters] = useState(false);
   
-  // DRAFT STATE CONTROL MATRIX FOR INPUT SYNCING
-  const [draftSearch, setDraftSearch] = useState(searchQuery);
+  // LIVE REAL-TIME INPUT TEXT STREAM STATE
+  const [localInputQuery, setLocalInputQuery] = useState(searchQuery);
 
   const seedRef = useRef<number>(0);
+  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Initialization Seed Loader Engine
+  // Initialize Random Seed
   useEffect(() => {
     const key = "sp_browse_seed";
     let s = parseInt(sessionStorage.getItem(key) || "0", 10);
@@ -104,11 +105,12 @@ function BrowsePageContent() {
     seedRef.current = s;
   }, []);
 
-  // CRITICAL FIX FOR SCREENSHOT BUG: Auto-locks and forces local box to update when header updates URL!
+  // Sync Input Box Instantly if URL updates from Header/External events
   useEffect(() => {
-    setDraftSearch(searchQuery);
+    setLocalInputQuery(searchQuery);
   }, [searchQuery]);
 
+  // Master URL Param Generator
   const updateUrl = useCallback(
     (next: {
       q?: string;
@@ -138,7 +140,7 @@ function BrowsePageContent() {
         if (nextPage > 1) current.set("page", String(nextPage));
         else current.delete("page");
       } else {
-        current.delete("page"); // Reset page if parameters update
+        current.delete("page"); // Reset page numbers on text updates
       }
 
       const queryString = current.toString();
@@ -146,6 +148,27 @@ function BrowsePageContent() {
     },
     [router, pathname]
   );
+
+  // CRITICAL FIX: Real-time Live Typing Stream Handler with High-Speed Debouncer
+  const handleLiveTypingSearch = (incomingText: string) => {
+    setLocalInputQuery(incomingText); // 1. Text instantly changes visually inside input block
+
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
+
+    // 2. Stream transmission updates the entire system architecture smoothly while typing
+    debounceTimerRef.current = setTimeout(() => {
+      updateUrl({ q: incomingText, page: 1 });
+    }, 400); // 400ms speed balance for seamless execution
+  };
+
+  // Instant Clear Trigger Engine
+  const handleInstantClear = () => {
+    setLocalInputQuery("");
+    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+    updateUrl({ q: "", page: 1 });
+  };
 
   const fetchProducts = useCallback(async () => {
     setLoading(true);
@@ -185,14 +208,13 @@ function BrowsePageContent() {
         )
       );
     } catch (error) {
-      console.error("Critical Failure in product fetch pipeline:", error);
+      console.error("Fetch Execution Interrupted:", error);
       setProducts([]);
-    } {
+    } finally {
       setLoading(false);
     }
   }, [selectedCat, sort, minPrice, maxPrice, searchQuery, page]);
 
-  // Execute clean fetch directly synchronized with system url changes
   useEffect(() => {
     fetchProducts();
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -219,41 +241,23 @@ function BrowsePageContent() {
   const currentCategory = resolveCategory(selectedCat) as any;
   const displayTitle = searchQuery.trim() || currentCategory?.name || "All Products";
 
-  const onSubmitSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    const nextQuery = draftSearch.trim();
-    updateUrl({
-      q: nextQuery,
-      page: 1,
-    });
-  };
-
   const handleCategoryClick = (catId: string) => {
     const nextCat = selectedCat === catId ? "" : catId;
-    updateUrl({
-      cat: nextCat,
-      page: 1,
-    });
+    updateUrl({ cat: nextCat, page: 1 });
   };
 
   const handleSortChange = (value: string) => {
-    updateUrl({
-      sort: value,
-      page: 1,
-    });
+    updateUrl({ sort: value, page: 1 });
   };
 
   const handlePriceRangeChange = (min: string, max: string) => {
     setShowFilters(true);
-    updateUrl({
-      minPrice: min,
-      maxPrice: max,
-      page: 1,
-    });
+    updateUrl({ minPrice: min, maxPrice: max, page: 1 });
   };
 
   const clearFilters = () => {
-    setDraftSearch("");
+    setLocalInputQuery("");
+    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
     router.replace(pathname, { scroll: false });
   };
 
@@ -294,39 +298,29 @@ function BrowsePageContent() {
       </div>
 
       <div className="max-w-7xl mx-auto px-3 py-4">
-        {/* Main Search Input Form */}
-        <form onSubmit={onSubmitSearch} className="mb-4">
+        {/* Main Search Input Form (Fully Real-Time Controlled Component) */}
+        <div className="mb-4">
           <div className="flex items-center gap-2">
             <div className="flex-1 bg-white dark:bg-white border border-gray-200 dark:border-gray-200 rounded-2xl shadow-sm flex items-center overflow-hidden">
               <Search size={18} className="ml-4 text-gray-400 dark:text-gray-400 shrink-0" />
               <input
-                value={draftSearch}
-                onChange={(e) => setDraftSearch(e.target.value)}
+                value={localInputQuery}
+                onChange={(e) => handleLiveTypingSearch(e.target.value)}
                 placeholder="Search products, brands, categories..."
                 className="w-full px-3 py-3 text-sm sm:text-base outline-none text-gray-900 dark:text-gray-900 placeholder:text-gray-400 dark:placeholder:text-gray-400 bg-white dark:bg-white"
               />
-              {draftSearch.trim() && (
+              {localInputQuery.trim() && (
                 <button
                   type="button"
-                  onClick={() => {
-                    setDraftSearch("");
-                    updateUrl({ q: "", page: 1 });
-                  }}
+                  onClick={handleInstantClear}
                   className="px-3 text-gray-400 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-700 transition-colors"
                 >
                   <X size={18} />
                 </button>
               )}
             </div>
-
-            <button
-              type="submit"
-              className="px-4 py-3 bg-orange-500 text-white font-semibold rounded-2xl shadow-sm hover:bg-orange-600 transition-colors shrink-0"
-            >
-              Search
-            </button>
           </div>
-        </form>
+        </div>
 
         {/* Filter and Sort Action Row */}
         <div className="flex items-center justify-between mb-4 gap-2">
@@ -437,7 +431,6 @@ function BrowsePageContent() {
   );
 }
 
-// Global Amazon-Level Next.js Hydration Shell Export
 export default function BrowsePage() {
   return (
     <Suspense fallback={
