@@ -4,8 +4,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useState, Suspense, useEffect, useRef } from "react";
 import { useShopStore } from "@/store/useShopStore"; // Core Engine State Connection
 import { 
-  Search, Menu, X, ChevronRight, Flame, Home, Grid3X3, Compass, Zap, 
-  Wrench, GitCompare, Phone, Gem, Tv, Car, Sun, Lock, 
+  Search, Menu, X, ChevronRight, Flame, Home, Grid3X3, Tag, Compass, Zap, 
+  BookOpen, Wrench, GitCompare, Phone, Gem, Tv, Car, Cpu, Sun, Lock, 
   TrendingUp, Sparkles, Package, ShoppingCart, Heart 
 } from "lucide-react";
 import { CATEGORIES } from "@/data/categories";
@@ -23,6 +23,7 @@ const NAV_LINKS = [
   { href: "/feed", icon: Zap, label: "Discover" },
   { href: "/search", icon: Search, label: "Search" },
   { href: "/compare", icon: GitCompare, label: "Compare" },
+  { href: "/blog", icon: BookOpen, label: "Blog" },
   { href: "/tools", icon: Wrench, label: "Tools" },
 ];
 
@@ -47,7 +48,6 @@ function HeaderSearch() {
   const searchParams = useSearchParams();
   const [query, setQuery] = useState(searchParams.get("q") || "");
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [searchOpen, setSearchOpen] = useState(false); // Controls 🔎 Toggle Field Window
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [showSugg, setShowSugg] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -65,29 +65,11 @@ function HeaderSearch() {
   const cartItemsCount = mounted ? cart.reduce((acc, item) => acc + (item.quantity || 1), 0) : 0;
   const wishlistItemsCount = mounted ? wishlistBoards.reduce((acc, b) => acc + b.products.length, 0) : 0;
 
-  // Sync state automatically with URL search params changes (from any search box)
-  useEffect(() => {
-    const currentQ = searchParams.get("q") || "";
-    if (window.location.pathname.includes("/categories/")) {
-      setQuery("");
-    } else {
-      setQuery(currentQ);
-    }
-  }, [searchParams]);
-
-  // Focus input automatically when search field opens
-  useEffect(() => {
-    if (searchOpen && inputRef.current) {
-      setTimeout(() => inputRef.current?.focus(), 100);
-    }
-  }, [searchOpen]);
-
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     if (query.trim()) {
       router.push(`/search?q=${encodeURIComponent(query.trim())}`);
       setShowSugg(false);
-      setSearchOpen(false); // Close dynamic header layer on execute
     }
   };
 
@@ -114,6 +96,12 @@ function HeaderSearch() {
 
   useEffect(() => {
     setDrawerOpen(false);
+    const currentQ = searchParams.get("q") || "";
+    if (window.location.pathname.includes("/categories/")) {
+      setQuery("");
+    } else {
+      setQuery(currentQ);
+    }
   }, [searchParams]);
 
   return (
@@ -124,40 +112,57 @@ function HeaderSearch() {
       </div>
 
       {/* Main header */}
-      <header className="bg-orange-500 shadow-md sticky top-0 z-50 w-full overflow-hidden sm:overflow-visible">
+      <header className="bg-orange-500 shadow-md sticky top-0 z-50 transition-all">
         <div className="max-w-7xl mx-auto px-3 sm:px-4 py-2.5">
-          <div className="flex items-center justify-between gap-2 sm:gap-4 w-full">
+          <div className="flex items-center gap-2 sm:gap-4">
+            {/* Hamburger (mobile) */}
+            <button
+              onClick={() => setDrawerOpen(true)}
+              className="lg:hidden text-white p-1.5 rounded hover:bg-orange-600 transition-colors flex-shrink-0"
+              aria-label="Open menu"
+            >
+              <Menu size={22} />
+            </button>
 
-            {/* Left Box: Menu Button & Logo */}
-            <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
-              {/* Hamburger (mobile) */}
-              <button
-                onClick={() => setDrawerOpen(true)}
-                className="lg:hidden text-white p-1.5 rounded hover:bg-orange-600 transition-colors"
-                aria-label="Open menu"
-              >
-                <Menu size={22} />
+            {/* Logo */}
+            <Link href="/" className="flex-shrink-0 flex items-center gap-0.5 mr-1 sm:mr-2">
+              <span className="text-white font-black text-xl sm:text-2xl tracking-tight">Shop</span>
+              <span className="bg-white text-orange-500 font-black text-xl sm:text-2xl px-1.5 rounded tracking-tight shadow-sm">Peak</span>
+            </Link>
+
+            {/* Search */}
+            <form onSubmit={handleSearch} className="flex-1 flex relative">
+              <input
+                ref={inputRef}
+                type="text"
+                value={query}
+                onChange={e => handleInputChange(e.target.value)}
+                onFocus={() => query.length >= 2 && setShowSugg(true)}
+                placeholder="Search products, brands, categories..."
+                className="flex-1 px-4 py-2 text-sm rounded-l-full border-0 outline-none text-gray-800 bg-white min-w-0 placeholder-gray-400 focus:ring-2 focus:ring-orange-700 transition-all"
+              />
+              <button type="submit" className="bg-orange-700 hover:bg-orange-800 text-white px-4 sm:px-6 rounded-r-full transition-colors flex-shrink-0 flex items-center justify-center">
+                <Search size={18} />
               </button>
+              {showSugg && suggestions.length > 0 && (
+                <div className="absolute top-full left-0 right-0 mt-1 bg-white shadow-xl rounded-xl border border-gray-100 overflow-hidden z-50">
+                  {suggestions.map(s => (
+                    <button
+                      key={s}
+                      onMouseDown={() => { setQuery(s); setShowSugg(false); router.push(`/search?q=${encodeURIComponent(s)}`); }}
+                      className="flex items-center gap-2 w-full px-4 py-2.5 text-sm text-gray-700 hover:bg-orange-50 hover:text-orange-600 text-left transition-colors"
+                    >
+                      <Search size={13} className="text-gray-400 shrink-0" />
+                      {s}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </form>
 
-              {/* Logo */}
-              <Link href="/" className="flex items-center gap-0.5">
-                <span className="text-white font-black text-lg sm:text-2xl tracking-tight">Shop</span>
-                <span className="bg-white text-orange-500 font-black text-lg sm:text-2xl px-1.5 rounded tracking-tight shadow-sm">Peak</span>
-              </Link>
-            </div>
-
-            {/* Right Box: Action Elements & Toggle Only 🔎 Icon */}
-            <div className="flex items-center gap-3 md:gap-4 text-white font-bold text-sm flex-shrink-0 ml-auto">
-
-              {/* DYNAMIC INTERACTIVE SEARCH ICON TRIGGER */}
-              <button
-                onClick={() => setSearchOpen(!searchOpen)}
-                className="p-2 text-white hover:bg-orange-600 rounded-full transition-colors flex items-center justify-center shrink-0"
-                aria-label="Toggle search box"
-              >
-                {searchOpen ? <X size={22} className="text-white" /> : <Search size={22} className="text-white" />}
-              </button>
-
+            {/* Desktop Quick-Access Core Sync (Wishlist & Cart Icons) */}
+            <div className="hidden sm:flex items-center gap-4 text-white font-bold text-sm flex-shrink-0">
+              
               {/* Dynamic Wishlist Module */}
               <Link href="/wishlist" className="relative group p-1.5 flex flex-col items-center justify-center hover:text-yellow-100 transition-colors">
                 <Heart size={21} className="group-hover:scale-105 transition-transform" />
@@ -186,65 +191,6 @@ function HeaderSearch() {
 
             </div>
           </div>
-
-          {/* DYNAMIC EXPANDABLE LAYER FIELD CONTAINER */}
-          {searchOpen && (
-            <div className="w-full pt-2 pb-1">
-              <form onSubmit={handleSearch} className="w-full relative max-w-2xl mx-auto min-w-0">
-                <div className="flex w-full items-center bg-white dark:bg-white rounded-full overflow-hidden border-0 shadow-sm focus-within:ring-2 focus-within:ring-orange-700 transition-all">
-                  <input
-                    ref={inputRef}
-                    type="text"
-                    value={query}
-                    onChange={e => handleInputChange(e.target.value)}
-                    onFocus={() => query.length >= 2 && setShowSugg(true)}
-                    placeholder="Search products..."
-                    className="w-full px-4 py-2 text-sm outline-none border-0 text-gray-950 bg-white dark:text-gray-950 dark:bg-white min-w-0 placeholder-gray-400 focus:ring-0 focus:outline-none"
-                    style={{ color: '#030712', backgroundColor: '#ffffff' }}
-                  />
-                  {query.trim() && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setQuery("");
-                        setShowSugg(false);
-                      }}
-                      className="px-2 text-gray-400 hover:text-gray-600 transition-colors shrink-0"
-                    >
-                      <X size={16} />
-                    </button>
-                  )}
-                  <button 
-                    type="submit" 
-                    className="bg-orange-700 hover:bg-orange-800 text-white h-9 px-4 sm:px-6 transition-colors flex-shrink-0 flex items-center justify-center rounded-r-full"
-                  >
-                    <Search size={16} className="sm:w-[18px] sm:h-[18px]" />
-                  </button>
-                </div>
-
-                {showSugg && suggestions.length > 0 && (
-                  <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-white shadow-xl rounded-xl border border-gray-100 overflow-hidden z-50 max-h-60 overflow-y-auto">
-                    {suggestions.map(s => (
-                      <button
-                        key={s}
-                        type="button"
-                        onMouseDown={() => { 
-                          setQuery(s); 
-                          setShowSugg(false); 
-                          setSearchOpen(false);
-                          router.push(`/search?q=${encodeURIComponent(s)}`); 
-                        }}
-                        className="flex items-center gap-2 w-full px-4 py-2.5 text-sm text-gray-800 dark:text-gray-800 hover:bg-orange-50 dark:hover:bg-orange-50 text-left transition-colors"
-                      >
-                        <Search size={13} className="text-gray-400 shrink-0" />
-                        {s}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </form>
-            </div>
-          )}
 
           {/* Desktop category nav strip */}
           <nav className="hidden sm:flex items-center gap-0.5 mt-2 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
@@ -375,7 +321,7 @@ function HeaderSearch() {
 export default function Header() {
   return (
     <Suspense fallback={
-      <div className="bg-orange-500 h-14 sticky top-0 z-50 flex items-center px-4 w-full">
+      <div className="bg-orange-500 h-14 sticky top-0 z-50 flex items-center px-4">
         <span className="text-white font-black text-xl">Shop</span>
         <span className="bg-white text-orange-500 font-black text-xl px-1 rounded ml-0.5">Peak</span>
       </div>
