@@ -166,19 +166,11 @@ function HeaderSearch() {
               )}
             </form>
 
-            {/* Right Box: Desktop & Mobile Triggers */}
-            <div className="flex items-center gap-2 sm:gap-3 md:gap-4 text-white font-bold text-sm flex-shrink-0">
+            {/* Right Box: Desktop & Mobile Action Icons */}
+            <div className="flex items-center gap-3 md:gap-4 text-white font-bold text-sm flex-shrink-0">
 
-              {/* Under 5$ Conversion Trigger Button (Visible everywhere, scales beautifully) */}
-              <Link 
-                href="/under-5-shop" 
-                className="bg-yellow-300 hover:bg-yellow-400 text-black font-black text-[10px] sm:text-xs px-2 sm:px-3 py-1.5 rounded-xl transition-all flex items-center gap-0.5 sm:gap-1 shadow-sm uppercase tracking-wider shrink-0"
-              >
-                <span className="animate-pulse">✨</span> <span className="hidden xs:inline">under</span> 5$
-              </Link>
-
-              {/* Dynamic Wishlist Module (Desktop Only) */}
-              <Link href="/wishlist" className="hidden sm:relative sm:group sm:p-1.5 sm:flex sm:flex-col sm:items-center sm:justify-center hover:text-yellow-100 transition-colors">
+              {/* Dynamic Wishlist Module */}
+              <Link href="/wishlist" className="relative group p-1.5 flex flex-col items-center justify-center hover:text-yellow-100 transition-colors">
                 <Heart size={21} className="group-hover:scale-105 transition-transform" />
                 <span className="text-[10px] font-bold mt-0.5 hidden md:block">Wishlist</span>
                 {wishlistItemsCount > 0 && (
@@ -188,8 +180,8 @@ function HeaderSearch() {
                 )}
               </Link>
 
-              {/* Dynamic Checkout Cart Module (Desktop Only) */}
-              <Link href="/cart" className="hidden sm:relative sm:group sm:p-1.5 sm:flex sm:flex-col sm:items-center sm:justify-center bg-orange-600/50 hover:bg-orange-700 border border-orange-400/20 px-3 py-1 rounded-xl transition-all">
+              {/* Dynamic Checkout Cart Module */}
+              <Link href="/cart" className="relative group p-1.5 flex flex-col items-center justify-center bg-orange-600/50 hover:bg-orange-700 border border-orange-400/20 px-3 py-1 rounded-xl transition-all">
                 <div className="flex items-center gap-2">
                   <div className="relative">
                     <ShoppingCart size={20} className="group-hover:scale-105 transition-transform" />
@@ -222,9 +214,6 @@ function HeaderSearch() {
             ))}
             <Link href="/trending" className="text-yellow-200 text-xs whitespace-nowrap px-2.5 py-1 rounded-full hover:bg-orange-600 transition-colors font-bold flex-shrink-0 ml-1">
               📈 Trending
-            </Link>
-            <Link href="/under-5-shop" className="text-yellow-200 text-xs whitespace-nowrap px-2.5 py-1 rounded-full hover:bg-orange-600 transition-colors font-bold flex-shrink-0 ml-1">
-              ✨ under 5$
             </Link>
             <Link href="/deals" className="text-yellow-200 text-xs whitespace-nowrap px-2.5 py-1 rounded-full hover:bg-orange-600 transition-colors font-bold flex-shrink-0 ml-auto">
               🔥 Flash Sale
@@ -259,17 +248,6 @@ function HeaderSearch() {
               <Link href="/cart" onClick={() => setDrawerOpen(false)} className="flex items-center justify-center gap-2 py-2 px-3 bg-orange-50 border border-orange-200 rounded-xl text-xs font-bold text-orange-600 shadow-sm">
                 <ShoppingCart size={15} className="text-orange-500" />
                 Cart ({cartItemsCount})
-              </Link>
-            </div>
-
-            {/* Mobile Under 5$ Express Action Banner */}
-            <div className="px-3 pt-3 pb-1 border-b border-gray-100 bg-white">
-              <Link 
-                href="/under-5-shop" 
-                onClick={() => setDrawerOpen(false)} 
-                className="flex items-center justify-center gap-2 py-2.5 px-4 bg-yellow-300 hover:bg-yellow-400 text-black rounded-xl text-xs font-black shadow-sm uppercase tracking-wider transition-all w-full text-center"
-              >
-                <span>✨</span> under 5$ store
               </Link>
             </div>
 
