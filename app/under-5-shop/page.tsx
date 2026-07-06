@@ -8,7 +8,6 @@ export const metadata = {
   description: "Browse premium high-volume utility gadgets, fashion jewelry and mobile gear strictly from $1 to $5.",
 };
 
-// 💎 FIXED: Lambe phrases ko short discrete keywords mein convert kiya hai taake API exact response de
 const filters = [
   { label: "✨ All Deals", key: "gadgets" },
   { label: "💍 Luxury Rings", key: "luxury rings" },
@@ -57,6 +56,10 @@ export default async function UnderFiveShopPage({
     keyword: currentKeyword,
   });
 
+  // 🛠️ FIX: Strict Front-end Sanity Guardrail Check
+  // Agar API dashboard se koi product $5 se upar ka aa bhi gaya, toh filter code usay block kar dega.
+  const verifiedProducts = data?.products ? data.products.filter(p => Number(p.sale_price) <= 5.00) : [];
+
   return (
     <main className="bg-white min-h-screen max-w-7xl mx-auto px-4 py-12 selection:bg-orange-500 selection:text-white">
       {/* Premium Elegant Header */}
@@ -92,10 +95,10 @@ export default async function UnderFiveShopPage({
       </div>
 
       {/* Product Feed Grid Layout */}
-      {data && data.products && data.products.length > 0 ? (
+      {verifiedProducts && verifiedProducts.length > 0 ? (
         <div>
           <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
-            {data.products.map((p) => (
+            {verifiedProducts.map((p) => (
               <ProductCard
                 key={p.product_id}
                 id={p.product_id}
