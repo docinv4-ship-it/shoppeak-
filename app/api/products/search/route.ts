@@ -7,9 +7,9 @@ export async function GET(req: NextRequest) {
   let keywords = searchParams.get("q") || "";
   const categoryId = searchParams.get("cat") || undefined;
 
-  // Amazon-Level String Clean Up & Tokenization (Prevents API Index Crashes)
+  // Global Multi-lingual and alphanumeric sanitization layer
   keywords = keywords
-    .replace(/[^\w\s\-\u0400-\u04FF]/g, " ") // Special characters remove karein but global/alphanumeric characters safe rakhein
+    .replace(/[^\w\s\-\u0400-\u04FF]/g, " ") 
     .replace(/\s+/g, " ")
     .trim();
 
@@ -20,7 +20,6 @@ export async function GET(req: NextRequest) {
     // FIX 2: Deep Search Keyword Limiter
     const words = keywords.split(/\s+/);
     if (words.length > 3 && categoryId) {
-      // Descriptive words string ko tight and short matching filter ke liye optimize karein
       keywords = words.slice(0, 3).join(" ");
     }
   }
@@ -28,14 +27,13 @@ export async function GET(req: NextRequest) {
   const page = Math.max(1, parseInt(searchParams.get("page") || "1"));
   const pageSize = Math.min(parseInt(searchParams.get("pageSize") || "50"), 50);
   
-  // Amazon-Level Price Matrix Validation Protection
   let minPrice = searchParams.get("minPrice") || undefined;
   let maxPrice = searchParams.get("maxPrice") || undefined;
+  
   if (minPrice && maxPrice) {
     const minNum = parseFloat(minPrice);
     const maxNum = parseFloat(maxPrice);
     if (!isNaN(minNum) && !isNaN(maxNum) && minNum > maxNum) {
-      // Swapping architecture to prevent logical engine failures if user selects invalid range
       minPrice = String(maxNum);
       maxPrice = String(minNum);
     }
@@ -47,13 +45,12 @@ export async function GET(req: NextRequest) {
   try {
     const result = await searchProducts(keywords, { page, pageSize, categoryId, minPrice, maxPrice, sort, seed });
 
-    // FIX 3: Multi-Tiered Empty Pool Fallback Engine (Extreme Search Resilience)
+    // FIX 3: Multi-Tiered Empty Pool Fallback Engine
     const hasNoProducts = !result || !result.products || result.products.length === 0;
     
     if (hasNoProducts && keywords !== "") {
       const words = keywords.split(/\s+/);
       
-      // Tier 1: Agar broad detailed phrase par zero results hain to reduce it to primary tokens
       if (words.length > 2) {
         const reducedKeywords = words.slice(0, 2).join(" ");
         const retryResult = await searchProducts(reducedKeywords, { page, pageSize, categoryId, minPrice, maxPrice, sort, seed });
@@ -64,7 +61,6 @@ export async function GET(req: NextRequest) {
         }
       }
 
-      // Tier 2: Pure Category structural fallback activation
       if (categoryId) {
         const fallbackResult = await searchProducts("", { page, pageSize, categoryId, minPrice, maxPrice, sort, seed });
         return NextResponse.json(fallbackResult, {
@@ -72,7 +68,6 @@ export async function GET(req: NextRequest) {
         });
       }
       
-      // Tier 3: Absolute dry pool recovery bypass
       const absoluteFallback = await searchProducts("best sellers", { page, pageSize, minPrice, maxPrice, sort, seed });
       return NextResponse.json(absoluteFallback, {
         headers: { "Cache-Control": "public, s-maxage=300, stale-while-revalidate=600" },
@@ -83,7 +78,7 @@ export async function GET(req: NextRequest) {
       headers: { "Cache-Control": "public, s-maxage=300, stale-while-revalidate=600" },
     });
   } catch (error) {
-    console.error("Search API Critical Failure Engine:", error);
+    console.error("Search API Failure Engine Log:", error);
     return NextResponse.json({ error: "Failed to fetch products", products: [], totalPage: 1, currentPage: 1 }, { status: 500 });
   }
 }
