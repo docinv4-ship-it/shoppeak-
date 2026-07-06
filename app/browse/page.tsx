@@ -54,50 +54,6 @@ function normalizeText(value: string) {
     .trim();
 }
 
-function expandQuery(query: string) {
-  const text = normalizeText(query);
-  if (!text) return [];
-
-  const parts = text.split(" ").filter(Boolean);
-  const variants = new Set<string>();
-
-  variants.add(text);
-
-  if (parts.length > 1) {
-    variants.add(parts.slice(0, 2).join(" "));
-    variants.add(parts.slice(0, 3).join(" "));
-    variants.add(parts.slice(-2).join(" "));
-  }
-
-  if (text.includes("phone")) {
-    variants.add("smartphone accessory");
-    variants.add("mobile accessory");
-    variants.add("phone case");
-    variants.add("wireless charger");
-  }
-
-  if (text.includes("watch")) {
-    variants.add("smart watch");
-    variants.add("luxury watch");
-    variants.add("men watch");
-    variants.add("women watch");
-  }
-
-  if (text.includes("home")) {
-    variants.add("home decor");
-    variants.add("kitchen tools");
-    variants.add("home appliance");
-  }
-
-  if (text.includes("shoe") || text.includes("fashion")) {
-    variants.add("men shoes");
-    variants.add("women shoes");
-    variants.add("fashion bag");
-  }
-
-  return [...variants];
-}
-
 function resolveCategory(input: string) {
   const raw = normalizeText(input);
   if (!raw) return null;
@@ -339,8 +295,9 @@ export default function BrowsePage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="bg-white border-b border-gray-200 sticky top-16 z-20 shadow-sm">
+    <div className="min-h-screen bg-gray-50 text-gray-900 dark:bg-gray-50 dark:text-gray-900">
+      {/* Top Categories Scroll Bar */}
+      <div className="bg-white dark:bg-white border-b border-gray-200 dark:border-gray-200 sticky top-16 z-20 shadow-sm">
         <div
           className="max-w-7xl mx-auto px-3 py-2 flex items-center gap-2 overflow-x-auto"
           style={{ scrollbarWidth: "none" }}
@@ -350,7 +307,7 @@ export default function BrowsePage() {
             className={`shrink-0 px-3 py-1.5 rounded-full text-sm font-semibold border transition-all ${
               !selectedCat
                 ? "bg-orange-500 text-white border-orange-500 shadow-sm"
-                : "border-gray-200 text-gray-700 hover:border-orange-400 bg-gray-50 hover:bg-gray-100"
+                : "border-gray-200 dark:border-gray-200 text-gray-700 dark:text-gray-700 hover:border-orange-400 bg-gray-50 dark:bg-gray-50 hover:bg-gray-100"
             }`}
           >
             All Products
@@ -363,7 +320,7 @@ export default function BrowsePage() {
               className={`shrink-0 px-3 py-1.5 rounded-full text-sm font-semibold border transition-all flex items-center gap-1 ${
                 selectedCat === String(cat.id)
                   ? "bg-orange-500 text-white border-orange-500 shadow-sm"
-                  : "border-gray-200 text-gray-700 hover:border-orange-400 bg-gray-50 hover:bg-gray-100"
+                  : "border-gray-200 dark:border-gray-200 text-gray-700 dark:text-gray-700 hover:border-orange-400 bg-gray-50 dark:bg-gray-50 hover:bg-gray-100"
               }`}
             >
               <span>{cat.icon}</span>
@@ -374,15 +331,16 @@ export default function BrowsePage() {
       </div>
 
       <div className="max-w-7xl mx-auto px-3 py-4">
+        {/* Main Search Input Form */}
         <form onSubmit={onSubmitSearch} className="mb-4">
           <div className="flex items-center gap-2">
-            <div className="flex-1 bg-white border border-gray-200 rounded-2xl shadow-sm flex items-center overflow-hidden">
-              <Search size={18} className="ml-4 text-gray-400 shrink-0" />
+            <div className="flex-1 bg-white dark:bg-white border border-gray-200 dark:border-gray-200 rounded-2xl shadow-sm flex items-center overflow-hidden">
+              <Search size={18} className="ml-4 text-gray-400 dark:text-gray-400 shrink-0" />
               <input
                 value={draftSearch}
                 onChange={(e) => setDraftSearch(e.target.value)}
                 placeholder="Search products, brands, categories..."
-                className="w-full px-3 py-3 text-sm sm:text-base outline-none text-gray-900 placeholder:text-gray-400 bg-transparent"
+                className="w-full px-3 py-3 text-sm sm:text-base outline-none text-gray-900 dark:text-gray-900 placeholder:text-gray-400 dark:placeholder:text-gray-400 bg-white dark:bg-white"
               />
               {draftSearch.trim() && (
                 <button
@@ -393,7 +351,7 @@ export default function BrowsePage() {
                     setPage(1);
                     updateUrl({ q: "", page: 1 });
                   }}
-                  className="px-3 text-gray-400 hover:text-gray-700 transition-colors"
+                  className="px-3 text-gray-400 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-700 transition-colors"
                 >
                   <X size={18} />
                 </button>
@@ -402,28 +360,29 @@ export default function BrowsePage() {
 
             <button
               type="submit"
-              className="px-4 py-3 bg-orange-500 text-white font-semibold rounded-2xl shadow-sm hover:bg-orange-600 transition-colors"
+              className="px-4 py-3 bg-orange-500 text-white font-semibold rounded-2xl shadow-sm hover:bg-orange-600 transition-colors shrink-0"
             >
               Search
             </button>
           </div>
         </form>
 
+        {/* Filter and Sort Action Row */}
         <div className="flex items-center justify-between mb-4 gap-2">
           <div className="flex items-center gap-2">
             <button
               onClick={() => setShowFilters((f) => !f)}
-              className="flex items-center gap-2 px-3 py-2 border border-gray-200 rounded-lg text-sm font-bold bg-white text-gray-800 hover:border-orange-400 hover:text-orange-500 transition-all shadow-sm"
+              className="flex items-center gap-2 px-3 py-2 border border-gray-200 dark:border-gray-200 rounded-lg text-sm font-bold bg-white dark:bg-white text-gray-800 dark:text-gray-800 hover:border-orange-400 hover:text-orange-500 dark:hover:text-orange-500 transition-all shadow-sm"
             >
-              <SlidersHorizontal size={14} />
-              Filters
+              <SlidersHorizontal size={14} className="text-gray-600 dark:text-gray-600" />
+              <span className="text-gray-800 dark:text-gray-800">Filters</span>
               {(priceRange.min || priceRange.max) && (
                 <span className="bg-orange-500 text-white text-[10px] w-4 h-4 rounded-full flex items-center justify-center font-black animate-pulse">
                   1
                 </span>
               )}
             </button>
-            <span className="text-sm text-gray-500 font-medium hidden sm:block">
+            <span className="text-sm text-gray-500 dark:text-gray-500 font-medium hidden sm:block">
               {Number(totalCount || 0).toLocaleString()} products found
             </span>
           </div>
@@ -431,20 +390,21 @@ export default function BrowsePage() {
           <select
             value={sort}
             onChange={(e) => handleSortChange(e.target.value)}
-            className="border border-gray-200 font-semibold rounded-lg text-sm py-2 px-3 bg-white text-gray-800 focus:border-orange-500 focus:outline-none shadow-sm cursor-pointer"
+            className="border border-gray-200 dark:border-gray-200 font-semibold rounded-lg text-sm py-2 px-3 bg-white dark:bg-white text-gray-800 dark:text-gray-800 focus:border-orange-500 focus:outline-none shadow-sm cursor-pointer"
           >
             {SORT_OPTIONS.map((o) => (
-              <option key={o.value} value={o.value}>
+              <option key={o.value} value={o.value} className="bg-white text-gray-900">
                 {o.label}
               </option>
             ))}
           </select>
         </div>
 
+        {/* Price Filter Collapsible Menu */}
         {showFilters && (
-          <div className="bg-white border border-gray-200 shadow-md rounded-xl p-4 mb-5 animate-fadeIn">
-            <div className="flex items-center justify-between mb-3 border-b border-gray-100 pb-2">
-              <h3 className="font-bold text-gray-900 text-sm tracking-wide">Select Price Range</h3>
+          <div className="bg-white dark:bg-white border border-gray-200 dark:border-gray-200 shadow-md rounded-xl p-4 mb-5 animate-fadeIn">
+            <div className="flex items-center justify-between mb-3 border-b border-gray-100 dark:border-gray-100 pb-2">
+              <h3 className="font-bold text-gray-900 dark:text-gray-900 text-sm tracking-wide">Select Price Range</h3>
               <button
                 onClick={() => {
                   setPriceRange({ min: "", max: "" });
@@ -452,7 +412,7 @@ export default function BrowsePage() {
                   setPage(1);
                   updateUrl({ minPrice: "", maxPrice: "", page: 1 });
                 }}
-                className="text-gray-400 hover:text-gray-700 p-1 rounded-lg transition-colors"
+                className="text-gray-400 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-700 p-1 rounded-lg transition-colors"
               >
                 <X size={17} />
               </button>
@@ -467,7 +427,7 @@ export default function BrowsePage() {
                     className={`px-4 py-2 rounded-xl border text-xs font-bold transition-all shadow-sm ${
                       isSelected
                         ? "bg-orange-600 text-white border-orange-600 font-black scale-[1.02]"
-                        : "bg-gray-100 border-gray-300 text-gray-900 hover:bg-gray-200 hover:border-gray-400"
+                        : "bg-gray-100 dark:bg-gray-100 border-gray-300 dark:border-gray-300 text-gray-900 dark:text-gray-900 hover:bg-gray-200 dark:hover:bg-gray-300"
                     }`}
                   >
                     {range.label}
@@ -478,20 +438,22 @@ export default function BrowsePage() {
           </div>
         )}
 
+        {/* Results Title Display Heading */}
         <div className="mb-4 flex items-center justify-between gap-3">
-          <div className="text-sm font-semibold text-gray-700">
+          <div className="text-sm font-semibold text-gray-700 dark:text-gray-700">
             Results for <span className="text-orange-500">“{displayTitle}”</span>
           </div>
           {(searchQuery || selectedCat || sort || priceRange.min || priceRange.max) && (
             <button
               onClick={clearFilters}
-              className="text-xs font-semibold text-gray-500 hover:text-orange-500 transition-colors"
+              className="text-xs font-semibold text-gray-500 dark:text-gray-500 hover:text-orange-500 transition-colors"
             >
               Clear all
             </button>
           )}
         </div>
 
+        {/* Product Cards Grid rendering */}
         <ProductGrid
           products={optimizedProcessedProducts}
           cols={5}
@@ -499,6 +461,7 @@ export default function BrowsePage() {
           skeletonCount={50}
         />
 
+        {/* Footer Navigation Controls */}
         {!loading && optimizedProcessedProducts.length > 0 && (
           <Pagination
             currentPage={page}
