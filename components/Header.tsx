@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useState, Suspense, useEffect, useRef, useMemo, useCallback } from "react";
 import { useShopStore } from "@/store/useShopStore";
 import {
@@ -21,7 +21,6 @@ import {
   Gem,
   Tv,
   Car,
-  Cpu,
   Sun,
   Lock,
   TrendingUp,
@@ -80,11 +79,6 @@ const SUGGESTIONS = [
 const SEARCH_SYNC_EVENT = "shoppeak-search-sync";
 const SEARCH_STORAGE_KEY = "shoppeak:last-search";
 
-function getCurrentQueryFromUrl() {
-  if (typeof window === "undefined") return "";
-  return new URLSearchParams(window.location.search).get("q") || "";
-}
-
 function broadcastSearchQuery(value: string) {
   if (typeof window === "undefined") return;
 
@@ -105,11 +99,13 @@ function broadcastSearchQuery(value: string) {
 
 function HeaderSearch() {
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
   const [query, setQuery] = useState("");
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [showSugg, setShowSugg] = useState(false);
   const [mounted, setMounted] = useState(false);
-  const [currentPath, setCurrentPath] = useState("");
 
   const inputRef = useRef<HTMLInputElement>(null);
   const searchWrapRef = useRef<HTMLFormElement>(null);
@@ -117,14 +113,12 @@ function HeaderSearch() {
   const cart = useShopStore((state) => state.cart);
   const wishlistBoards = useShopStore((state) => state.wishlistBoards);
 
+  const urlQuery = searchParams.get("q") || "";
+
   useEffect(() => {
     setMounted(true);
-    if (typeof window !== "undefined") {
-      setCurrentPath(window.location.pathname);
-      const initialQuery = getCurrentQueryFromUrl();
-      setQuery(initialQuery);
-    }
-  }, []);
+    setQuery(urlQuery);
+  }, [urlQuery]);
 
   const cartItemsCount = mounted ? cart.reduce((acc, item) => acc + (item.quantity || 1), 0) : 0;
   const wishlistItemsCount = mounted
@@ -144,22 +138,18 @@ function HeaderSearch() {
 
   const syncFromUrl = useCallback(() => {
     if (typeof window === "undefined") return;
-
-    const nextQuery = getCurrentQueryFromUrl();
-    setQuery(nextQuery);
+    setQuery(new URLSearchParams(window.location.search).get("q") || "");
     setShowSugg(false);
-    setCurrentPath(window.location.pathname);
   }, []);
 
-  const navigateToSearch = useCallback(
+  const navigateToBrowse = useCallback(
     (value: string, method: "push" | "replace" = "push") => {
       const cleanValue = value.trim();
       broadcastSearchQuery(cleanValue);
-
       setQuery(cleanValue);
       setShowSugg(false);
 
-      const target = cleanValue ? `/search?q=${encodeURIComponent(cleanValue)}` : "/search";
+      const target = cleanValue ? `/browse?q=${encodeURIComponent(cleanValue)}` : "/browse";
       router[method](target);
     },
     [router]
@@ -167,9 +157,7 @@ function HeaderSearch() {
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    if (query.trim()) {
-      navigateToSearch(query.trim(), "push");
-    }
+    navigateToBrowse(query, "push");
   };
 
   const handleInputChange = (val: string) => {
@@ -221,27 +209,20 @@ function HeaderSearch() {
   useEffect(() => {
     if (typeof window === "undefined") return;
 
-    const nextPath = window.location.pathname;
-    setCurrentPath(nextPath);
-
-    const urlQuery = getCurrentQueryFromUrl();
-
-    if (nextPath.includes("/categories/")) {
-      setQuery(urlQuery);
-    } else {
-      setQuery(urlQuery);
-    }
-
-    setShowSugg(false);
-  }, [currentPath]);
-
-  useEffect(() => {
+    setQuery(new URLSearchParams(window.location.search).get("q") || "");
     setDrawerOpen(false);
-  }, [currentPath]);
+    setShowSugg(false);
+  }, [pathname, searchParams]);
 
   const clearSearch = () => {
-    navigateToSearch("", "replace");
+    setQuery("");
     setShowSugg(false);
+    broadcastSearchQuery("");
+
+    if (pathname.startsWith("/browse")) {
+      router.replace("/browse", { scroll: false });
+    }
+
     inputRef.current?.focus();
   };
 
@@ -310,7 +291,7 @@ function HeaderSearch() {
                       type="button"
                       onMouseDown={(e) => {
                         e.preventDefault();
-                        navigateToSearch(suggestion, "push");
+                        navigateToBrowse(suggestion, "push");
                       }}
                       className="flex items-center gap-2 w-full px-4 py-2.5 text-sm text-gray-700 hover:bg-orange-50 hover:text-orange-600 text-left transition-colors"
                     >
