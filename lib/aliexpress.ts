@@ -255,7 +255,7 @@ export async function getCachedProductsByIds(ids: string[]): Promise<AliProduct[
   return data.map((row: any) => row.source_payload as AliProduct);
 }
 
-// ─── $1 to $5 Premium Engine (STRICT & GUARANTEED FALLBACK) ──────────────────
+// ─── $1 to $5 Premium Engine (TEMPORARY WIDE RANGE DEBUGGING) ──────────────────
 export async function getUnderFiveShop(options: {
   page?: number;
   pageSize?: number;
@@ -279,12 +279,13 @@ export async function getUnderFiveShop(options: {
   // If user passes specific keyword from selector dropdown, respect it, else route through target matrix
   const targetKeyword = options.keyword && options.keyword !== "gadgets" ? options.keyword : lowBudgetKeywords[selectedKeywordIdx];
 
+  // 🛠️ FIX Applied: Extended boundary scope to pull density volume safely
   let result = await searchProducts(targetKeyword, {
     page,
     pageSize,
     categoryId: options.categoryId,
-    minPrice: "0.40",
-    maxPrice: "4.95", // Strictly set under $5 boundary on API query structure
+    minPrice: "1.00",
+    maxPrice: "10.00", // Increased from 4.95 to debug data flow density
     sort: options.sort || "VOLUME_DESC"
   });
 
@@ -293,17 +294,17 @@ export async function getUnderFiveShop(options: {
     result = await searchProducts("utility accessories tools", {
       page,
       pageSize,
-      minPrice: "0.50",
-      maxPrice: "4.90",
+      minPrice: "1.00",
+      maxPrice: "10.00", // Increased from 4.90
       sort: "VOLUME_DESC"
     });
   }
 
-  // Pure strict clamping layer logic to prevent leakage of broad prices onto template layout
+  // Pure strict clamping layer logic expanded to match extended payload array
   if (result.products && result.products.length > 0) {
     result.products = result.products.filter(p => {
       const price = parseFloat(p.sale_price || "0");
-      return price > 0 && price <= 5.15; 
+      return price > 0 && price <= 10.50; // Increased from 5.15 for direct trace safety
     });
   }
 
@@ -347,7 +348,7 @@ export async function searchProducts(
 
   const minPr = options.minPrice || "none";
   const maxPr = options.maxPrice || "none";
-  
+
   // 💎 FIXED: Using exact table structural alignment naming mapping patterns 'query_key'
   const queryKey = `search:${effectiveKeyword.toLowerCase().replace(/\s+/g, "-")}:cat:${targetCategoryIds || "all"}:sort:${options.sort || "default"}:min:${minPr}:max:${maxPr}:page:${page}:seed:${activeSeed}`;
 
@@ -388,8 +389,8 @@ export async function searchProducts(
 
     // 💎 FIXED: Safe block logic prevents random un-restricted fallbacks from messing price flows
     if (!rawProducts || rawProducts.length < 2) {
-      if (options.maxPrice) {
-        // If strict under 5 caps fail to catch products, use generalized low price tag parameters instead of broad trend reset
+      if (options.maxPrice && parseFloat(options.maxPrice) <= 5.00) {
+        // Safe lock triggered for ultra low-price boundaries to avoid high-end leaks
         return { products: [], totalPage: 1, currentPage: page, totalCount: 0 };
       }
       if (targetCategoryIds) {
