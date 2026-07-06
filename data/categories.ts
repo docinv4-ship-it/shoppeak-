@@ -1,32 +1,43 @@
+import { getCategoryKeywords, getSubcategoryKeywords } from "./category-keywords";
+
 export interface Category {
   id: string;
   slug: string;
   name: string;
   icon: string;
   description: string;
-  keywords: string;
+  keywords: string[];
   color: string;
-  subcategories: { name: string; keywords: string; slug: string }[];
+  subcategories: { name: string; keywords: string[]; slug: string }[];
 }
 
-export const CATEGORIES: Category[] = [
+interface RawCategory {
+  id: string;
+  slug: string;
+  name: string;
+  icon: string;
+  description: string;
+  color: string;
+  subcategories: { name: string; slug: string }[];
+}
+
+const RAW_CATEGORIES: RawCategory[] = [
   {
     id: "509",
     slug: "phones-smartphones",
     name: "Phones & Smartphones",
     icon: "📱",
     description: "Budget phones, flagship killers, gaming phones, rugged phones, and more",
-    keywords: "smartphone mobile", 
     color: "bg-blue-500",
     subcategories: [
-      { name: "Budget Phones", keywords: "budget smartphone cell phone", slug: "budget-phones" },
-      { name: "Mid-Range", keywords: "Redmi Note smartphone Poco", slug: "mid-range-smartphones" },
-      { name: "Gaming Phones", keywords: "gaming smartphone RedMagic ROG", slug: "gaming-phones" },
-      { name: "Rugged Phones", keywords: "rugged waterproof phone Ulefone Oukitel", slug: "rugged-phones" },
-      { name: "Foldable & Flip", keywords: "foldable phone flip smartphone", slug: "foldable-phones" },
-      { name: "Tablets", keywords: "tablet Android pad tablet PC", slug: "tablet-combos" },
-      { name: "5G Phones", keywords: "5G smartphone high speed cellular", slug: "5g-phones" },
-      { name: "iPhone Style", keywords: "luxury dynamic island style phone", slug: "iphone-clones" },
+      { name: "Budget Phones", slug: "budget-phones" },
+      { name: "Mid-Range", slug: "mid-range-smartphones" },
+      { name: "Gaming Phones", slug: "gaming-phones" },
+      { name: "Rugged Phones", slug: "rugged-phones" },
+      { name: "Foldable & Flip", slug: "foldable-phones" },
+      { name: "Tablets", slug: "tablet-combos" },
+      { name: "5G Phones", slug: "5g-phones" },
+      { name: "iPhone Style", slug: "iphone-clones" },
     ],
   },
   {
@@ -35,17 +46,16 @@ export const CATEGORIES: Category[] = [
     name: "Jewelry & Watches",
     icon: "💎",
     description: "Luxury watches, rings, necklaces, bracelets, moissanite and fine jewelry",
-    keywords: "jewelry watch",
     color: "bg-yellow-500",
     subcategories: [
-      { name: "Luxury Watches", keywords: "luxury automatic mechanical watch men", slug: "luxury-watches" },
-      { name: "Diamond Rings", keywords: "moissanite diamond ring 925 silver", slug: "rings" },
-      { name: "Necklaces", keywords: "pendant necklace jewelry women", slug: "necklaces" },
-      { name: "Bracelets", keywords: "bangle bracelet luxury jewelry", slug: "bracelets" },
-      { name: "Earrings", keywords: "drop earrings stud jewelry studs", slug: "earrings" },
-      { name: "Smart Watches", keywords: "smartwatch fitness tracker sport watch", slug: "smart-watches" },
-      { name: "Jewelry Sets", keywords: "gold plated jewelry set bridal", slug: "jewelry-sets" },
-      { name: "Custom Jewelry", keywords: "custom personalized name jewelry", slug: "custom-jewelry" },
+      { name: "Luxury Watches", slug: "luxury-watches" },
+      { name: "Diamond Rings", slug: "rings" },
+      { name: "Necklaces", slug: "necklaces" },
+      { name: "Bracelets", slug: "bracelets" },
+      { name: "Earrings", slug: "earrings" },
+      { name: "Smart Watches", slug: "smart-watches" },
+      { name: "Jewelry Sets", slug: "jewelry-sets" },
+      { name: "Custom Jewelry", slug: "custom-jewelry" },
     ],
   },
   {
@@ -54,17 +64,16 @@ export const CATEGORIES: Category[] = [
     name: "Home Furniture",
     icon: "🛋️",
     description: "Luxury sofas, beds, dining sets, wardrobes, and premium home decor",
-    keywords: "furniture home",
     color: "bg-orange-400",
     subcategories: [
-      { name: "Sofas & Sectionals", keywords: "luxury sofa couch sectional living room", slug: "automated-sofas" },
-      { name: "Beds & Frames", keywords: "luxury bed frame bedroom furniture", slug: "beds" },
-      { name: "Dining Sets", keywords: "dining table chair set kitchen", slug: "dining" },
-      { name: "Wardrobes", keywords: "wardrobe clothes cabinet closet bedroom", slug: "wardrobes" },
-      { name: "Coffee Tables", keywords: "modern coffee table living room", slug: "coffee-tables" },
-      { name: "Recliners", keywords: "recliner leather armchair sofa chair", slug: "recliners" },
-      { name: "Home Decor", keywords: "luxury home decor aesthetic room ornament", slug: "luxury-decor" },
-      { name: "Wall Art", keywords: "wall art canvas painting large frame", slug: "wall-art" },
+      { name: "Sofas & Sectionals", slug: "automated-sofas" },
+      { name: "Beds & Frames", slug: "beds" },
+      { name: "Dining Sets", slug: "dining" },
+      { name: "Wardrobes", slug: "wardrobes" },
+      { name: "Coffee Tables", slug: "coffee-tables" },
+      { name: "Recliners", slug: "recliners" },
+      { name: "Home Decor", slug: "luxury-decor" },
+      { name: "Wall Art", slug: "wall-art" },
     ],
   },
   {
@@ -73,15 +82,14 @@ export const CATEGORIES: Category[] = [
     name: "Lighting & Chandeliers",
     icon: "💡",
     description: "Crystal chandeliers, LED lighting, smart lights, and luxury fixtures",
-    keywords: "chandelier light",
     color: "bg-amber-400",
     subcategories: [
-      { name: "Crystal Chandeliers", keywords: "luxury crystal chandelier gold ceiling light", slug: "crystal-chandeliers" },
-      { name: "Modern LED", keywords: "LED ceiling light minimalist lamp", slug: "modern-led" },
-      { name: "LED Strips", keywords: "RGB LED strip light flexible ribbon tape", slug: "led-strips" },
-      { name: "Floor Lamps", keywords: "modern floor lamp Nordic standing light", slug: "floor-lamps" },
-      { name: "Wall Sconces", keywords: "luxury wall light sconce indoor", slug: "wall-sconces" },
-      { name: "Smart Lighting", keywords: "smart tuya WiFi light bulb app control", slug: "smart-lighting" },
+      { name: "Crystal Chandeliers", slug: "crystal-chandeliers" },
+      { name: "Modern LED", slug: "modern-led" },
+      { name: "LED Strips", slug: "led-strips" },
+      { name: "Floor Lamps", slug: "floor-lamps" },
+      { name: "Wall Sconces", slug: "wall-sconces" },
+      { name: "Smart Lighting", slug: "smart-lighting" },
     ],
   },
   {
@@ -90,17 +98,16 @@ export const CATEGORIES: Category[] = [
     name: "Home Appliances",
     icon: "🏠",
     description: "Kitchen appliances, washing machines, air conditioners, and smart home gadgets",
-    keywords: "appliances kitchen",
     color: "bg-cyan-500",
     subcategories: [
-      { name: "Air Fryers", keywords: "digital air fryer oil-free cooker", slug: "air-fryers" },
-      { name: "Coffee Machines", keywords: "espresso coffee machine maker frother", slug: "coffee-machines" },
-      { name: "Robot Vacuums", keywords: "robot vacuum cleaner auto charge smart lidar", slug: "robot-vacuums" },
-      { name: "Air Purifiers", keywords: "air purifier HEPA filter home cleaner", slug: "air-purifiers" },
-      { name: "Washing Machines", keywords: "portable washing machine mini washer spin", slug: "washing-machines" },
-      { name: "Blenders & Juicers", keywords: "electric blender juicer smoothie mixer", slug: "blenders" },
-      { name: "Mini Fridges", keywords: "mini fridge portable refrigerator cooler", slug: "refrigerators" },
-      { name: "Ice Makers", keywords: "countertop ice maker machine compact countertop", slug: "ice-makers" },
+      { name: "Air Fryers", slug: "air-fryers" },
+      { name: "Coffee Machines", slug: "coffee-machines" },
+      { name: "Robot Vacuums", slug: "robot-vacuums" },
+      { name: "Air Purifiers", slug: "air-purifiers" },
+      { name: "Washing Machines", slug: "washing-machines" },
+      { name: "Blenders & Juicers", slug: "blenders" },
+      { name: "Mini Fridges", slug: "refrigerators" },
+      { name: "Ice Makers", slug: "ice-makers" },
     ],
   },
   {
@@ -109,19 +116,18 @@ export const CATEGORIES: Category[] = [
     name: "Consumer Electronics",
     icon: "🔌",
     description: "Laptops, TVs, gaming, cameras, audio, VR, and tech accessories",
-    keywords: "electronics gadget",
     color: "bg-purple-500",
     subcategories: [
-      { name: "Laptops", keywords: "gaming laptop intel core AMD notebook", slug: "laptops" },
-      { name: "Smart TVs", keywords: "smart TV 4K android television display", slug: "televisions" },
-      { name: "Wireless Earbuds", keywords: "TWS wireless earbuds bluetooth headphones", slug: "earbuds" },
-      { name: "Headphones", keywords: "ANC noise cancelling headphones over ear wireless", slug: "headphones" },
-      { name: "Gaming Accessories", keywords: "gaming mechanical keyboard mouse combo RGB", slug: "gaming-accessories" },
-      { name: "Cameras", keywords: "mirrorless digital camera 4K video photography", slug: "cameras" },
-      { name: "Drones", keywords: "GPS drone camera 4K professional brushless", slug: "drones" },
-      { name: "VR & AR", keywords: "VR headset 3D virtual reality glasses standalone", slug: "vr-ar" },
-      { name: "Smart Home", keywords: "smart home automation zigbee tuya sensor alexa", slug: "smart-home" },
-      { name: "Projectors", keywords: "4K projector home theater cinema native 1080P", slug: "projectors" },
+      { name: "Laptops", slug: "laptops" },
+      { name: "Smart TVs", slug: "televisions" },
+      { name: "Wireless Earbuds", slug: "earbuds" },
+      { name: "Headphones", slug: "headphones" },
+      { name: "Gaming Accessories", slug: "gaming-accessories" },
+      { name: "Cameras", slug: "cameras" },
+      { name: "Drones", slug: "drones" },
+      { name: "VR & AR", slug: "vr-ar" },
+      { name: "Smart Home", slug: "smart-home" },
+      { name: "Projectors", slug: "projectors" },
     ],
   },
   {
@@ -130,15 +136,14 @@ export const CATEGORIES: Category[] = [
     name: "Vehicles & Automotive",
     icon: "🚗",
     description: "Car accessories, electric bikes, scooters, tools, and vehicle upgrades",
-    keywords: "automotive car",
     color: "bg-red-500",
     subcategories: [
-      { name: "Electric Bikes", keywords: "electric bike ebike high power mountain motor", slug: "electric-bikes" },
-      { name: "Electric Scooters", keywords: "electric scooter adult foldable e-scooter", slug: "electric-scooters" },
-      { name: "Car Electronics", keywords: "car dash cam rearview mirror camera car play GPS", slug: "car-electronics" },
-      { name: "Car Accessories", keywords: "car interior accessories styling organizer universal", slug: "car-accessories" },
-      { name: "Car Tools", keywords: "car repair tool obd2 scanner diagnostic jack", slug: "car-tools" },
-      { name: "Go-Karts & ATVs", keywords: "go kart racing gas ATV quad bike offroad", slug: "go-karts" },
+      { name: "Electric Bikes", slug: "electric-bikes" },
+      { name: "Electric Scooters", slug: "electric-scooters" },
+      { name: "Car Electronics", slug: "car-electronics" },
+      { name: "Car Accessories", slug: "car-accessories" },
+      { name: "Car Tools", slug: "car-tools" },
+      { name: "Go-Karts & ATVs", slug: "go-karts" },
     ],
   },
   {
@@ -147,16 +152,15 @@ export const CATEGORIES: Category[] = [
     name: "Machinery & Industrial",
     icon: "⚙️",
     description: "Laser cutters, CNC machines, 3D printers, welding tools, and industrial equipment",
-    keywords: "machinery tools",
     color: "bg-gray-600",
     subcategories: [
-      { name: "Laser Engravers", keywords: "laser engraver cutter fiber laser marking machine", slug: "laser-engravers" },
-      { name: "CNC Machines", keywords: "CNC router engraving machine woodworking milling", slug: "cnc-machines" },
-      { name: "3D Printers", keywords: "FDM 3D printer resin high precision DIY kit", slug: "3d-printers" },
-      { name: "Welding Machines", keywords: "inverter welding machine MIG TIG ARC welder", slug: "welding" },
-      { name: "Power Tools", keywords: "brushless cordless drill power tool set saw electric", slug: "power-tools" },
-      { name: "Hydraulic Equipment", keywords: "hydraulic press pump cylinder industrial lifting", slug: "hydraulic" },
-      { name: "Food Machines", keywords: "commercial food processing machine blender mixer restaurant", slug: "food-machines" },
+      { name: "Laser Engravers", slug: "laser-engravers" },
+      { name: "CNC Machines", slug: "cnc-machines" },
+      { name: "3D Printers", slug: "3d-printers" },
+      { name: "Welding Machines", slug: "welding" },
+      { name: "Power Tools", slug: "power-tools" },
+      { name: "Hydraulic Equipment", slug: "hydraulic" },
+      { name: "Food Machines", slug: "food-machines" },
     ],
   },
   {
@@ -165,16 +169,15 @@ export const CATEGORIES: Category[] = [
     name: "Outdoor & Sports",
     icon: "🏕️",
     description: "Camping, fitness equipment, telescopes, inflatable parks, and outdoor adventures",
-    keywords: "sports outdoor",
     color: "bg-green-500",
     subcategories: [
-      { name: "Camping & Survival", keywords: "camping tent outdoor waterproof survival gear", slug: "camping" },
-      { name: "Fitness Equipment", keywords: "home gym fitness equipment dumbbells treadmill weight", slug: "fitness" },
-      { name: "Cycling", keywords: "mountain bicycle road bike cycling accessories gear", slug: "cycling" },
-      { name: "Water Sports", keywords: "inflatable boat sup paddle board pool beach", slug: "water-sports" },
-      { name: "Telescopes", keywords: "astronomical telescope space monocular binoculars night vision", slug: "telescopes" },
-      { name: "Trampolines", keywords: "outdoor trampoline big safety net jumping pad", slug: "trampolines" },
-      { name: "Gardening", keywords: "hydroponic garden system grow light planting tool plant", slug: "gardening" },
+      { name: "Camping & Survival", slug: "camping" },
+      { name: "Fitness Equipment", slug: "fitness" },
+      { name: "Cycling", slug: "cycling" },
+      { name: "Water Sports", slug: "water-sports" },
+      { name: "Telescopes", slug: "telescopes" },
+      { name: "Trampolines", slug: "trampolines" },
+      { name: "Gardening", slug: "gardening" },
     ],
   },
   {
@@ -183,16 +186,15 @@ export const CATEGORIES: Category[] = [
     name: "Fashion & Style",
     icon: "👗",
     description: "Clothing, luxury bags, shoes, accessories, fur coats, and designer fashion",
-    keywords: "fashion clothing",
     color: "bg-pink-500",
     subcategories: [
-      { name: "Women's Clothing", keywords: "women fashion dress designer clothing luxury", slug: "womens-clothing" },
-      { name: "Men's Clothing", keywords: "men jacket fashion clothing formal suit designer", slug: "mens-clothing" },
-      { name: "Luxury Bags", keywords: "luxury handbag genuine leather designer tote shoulder bag", slug: "luxury-bags" },
-      { name: "Shoes & Sneakers", keywords: "running sneakers luxury shoes trainers sports casual", slug: "shoes" },
-      { name: "Sunglasses", keywords: "polarized sunglasses retro luxury designer eye eyewear", slug: "sunglasses" },
-      { name: "Fur Coats", keywords: "winter fur coat women real luxury faux jacket", slug: "fur-coats" },
-      { name: "Wedding Dresses", keywords: "luxury bridal wedding dress lace elegant gown luxury", slug: "wedding-dresses" },
+      { name: "Women's Clothing", slug: "womens-clothing" },
+      { name: "Men's Clothing", slug: "mens-clothing" },
+      { name: "Luxury Bags", slug: "luxury-bags" },
+      { name: "Shoes & Sneakers", slug: "shoes" },
+      { name: "Sunglasses", slug: "sunglasses" },
+      { name: "Fur Coats", slug: "fur-coats" },
+      { name: "Wedding Dresses", slug: "wedding-dresses" },
     ],
   },
   {
@@ -201,14 +203,13 @@ export const CATEGORIES: Category[] = [
     name: "Health & Beauty",
     icon: "💄",
     description: "Beauty devices, skincare, hair removal, massage chairs, and wellness products",
-    keywords: "beauty skincare",
     color: "bg-rose-400",
     subcategories: [
-      { name: "Laser Hair Removal", keywords: "IPL laser hair removal device permanent painless epilator", slug: "laser-hair-removal" },
-      { name: "Massage Chairs", keywords: "luxury full body massage chair zero gravity 4D electric", slug: "massage-chairs" },
-      { name: "Skincare Devices", keywords: "facial massager microcurrent anti aging beauty therapy ultrasonic", slug: "skincare-devices" },
-      { name: "Hair Styling", keywords: "hair straightener brush automatic curler professional blow dryer", slug: "hair-styling" },
-      { name: "Electric Toothbrush", keywords: "sonic electric toothbrush sonic waterproof wireless charger heads", slug: "electric-toothbrush" },
+      { name: "Laser Hair Removal", slug: "laser-hair-removal" },
+      { name: "Massage Chairs", slug: "massage-chairs" },
+      { name: "Skincare Devices", slug: "skincare-devices" },
+      { name: "Hair Styling", slug: "hair-styling" },
+      { name: "Electric Toothbrush", slug: "electric-toothbrush" },
     ],
   },
   {
@@ -217,13 +218,12 @@ export const CATEGORIES: Category[] = [
     name: "Solar & Energy",
     icon: "☀️",
     description: "Solar panels, inverters, generators, power banks, and renewable energy systems",
-    keywords: "solar energy",
     color: "bg-yellow-400",
     subcategories: [
-      { name: "Solar Panels", keywords: "solar panel monocrystalline flexible photovolatic cells portable", slug: "solar-panels" },
-      { name: "Power Stations", keywords: "portable power station lifepo4 battery generator solar outdoor", slug: "power-stations" },
-      { name: "Generators", keywords: "silent diesel generator gasoline power backup inverter", slug: "generators" },
-      { name: "Inverters", keywords: "pure sine wave solar inverter hybrid grid mppt tie", slug: "inverters" },
+      { name: "Solar Panels", slug: "solar-panels" },
+      { name: "Power Stations", slug: "power-stations" },
+      { name: "Generators", slug: "generators" },
+      { name: "Inverters", slug: "inverters" },
     ],
   },
   {
@@ -232,13 +232,12 @@ export const CATEGORIES: Category[] = [
     name: "Security & CCTV",
     icon: "🔒",
     description: "Security cameras, CCTV systems, smart locks, safes, and surveillance equipment",
-    keywords: "security camera",
     color: "bg-gray-500",
     subcategories: [
-      { name: "CCTV Systems", keywords: "4K POE NVR CCTV security camera system outdoor kit", slug: "cctv" },
-      { name: "Smart Locks", keywords: "biometric fingerprint smart door lock tuya wifi keyless electronic", slug: "smart-locks" },
-      { name: "Safes", keywords: "fireproof electronic password safe box steel home security digital", slug: "safes" },
-      { name: "Video Doorbells", keywords: "wireless video doorbell intercom night vision wifi smart ring camera", slug: "doorbells" },
+      { name: "CCTV Systems", slug: "cctv" },
+      { name: "Smart Locks", slug: "smart-locks" },
+      { name: "Safes", slug: "safes" },
+      { name: "Video Doorbells", slug: "doorbells" },
     ],
   },
   {
@@ -247,15 +246,14 @@ export const CATEGORIES: Category[] = [
     name: "Luxury & High-Value",
     icon: "👑",
     description: "Grand pianos, bronze statues, billiard tables, saunas, and premium lifestyle",
-    keywords: "luxury premium",
     color: "bg-amber-600",
     subcategories: [
-      { name: "Piano & Keyboards", keywords: "grand piano digital electronic keyboard professional instruments", slug: "pianos" },
-      { name: "Billiard Tables", keywords: "billiard pool table slate international competition snooker full size", slug: "billiard-tables" },
-      { name: "Saunas & Steam", keywords: "home traditional wooden sauna steam room cabin traditional dry traditional infrared", slug: "saunas" },
-      { name: "Wine Cabinets", keywords: "compressor wine cooler cabinet cellar constant temperature refrigerator fridge storage", slug: "wine-cabinets" },
-      { name: "Bronze Statues", keywords: "handcrafted bronze statue luxury sculpture fine art outdoor garden luxury decoration", slug: "bronze-statues" },
-      { name: "Game Rooms", keywords: "arcade game machine table football air hockey gaming setup entertainment", slug: "game-rooms" },
+      { name: "Piano & Keyboards", slug: "pianos" },
+      { name: "Billiard Tables", slug: "billiard-tables" },
+      { name: "Saunas & Steam", slug: "saunas" },
+      { name: "Wine Cabinets", slug: "wine-cabinets" },
+      { name: "Bronze Statues", slug: "bronze-statues" },
+      { name: "Game Rooms", slug: "game-rooms" },
     ],
   },
   {
@@ -264,13 +262,12 @@ export const CATEGORIES: Category[] = [
     name: "Professional Audio",
     icon: "🎵",
     description: "PA systems, studio monitors, DJ equipment, microphones, and professional audio",
-    keywords: "audio sound",
     color: "bg-indigo-500",
     subcategories: [
-      { name: "PA Systems", keywords: "stage PA speaker system active passive audio outdoor concert line array", slug: "pa-systems" },
-      { name: "Studio Equipment", keywords: "studio condenser microphone audio interface monitoring headphones recording", slug: "studio" },
-      { name: "DJ Equipment", keywords: "DJ digital controller audio mixer turntable console soundboard setup", slug: "dj-equipment" },
-      { name: "LED Video Walls", keywords: "indoor outdoor stage LED video wall screen panel high refresh rate billboard display", slug: "led-walls" },
+      { name: "PA Systems", slug: "pa-systems" },
+      { name: "Studio Equipment", slug: "studio" },
+      { name: "DJ Equipment", slug: "dj-equipment" },
+      { name: "LED Video Walls", slug: "led-walls" },
     ],
   },
   {
@@ -279,22 +276,30 @@ export const CATEGORIES: Category[] = [
     name: "Medical & Mobility",
     icon: "♿",
     description: "Electric wheelchairs, medical devices, mobility scooters, and health equipment",
-    keywords: "medical mobility",
     color: "bg-teal-500",
     subcategories: [
-      { name: "Electric Wheelchairs", keywords: "lightweight foldable electric wheelchair power power motorized bariatric", slug: "wheelchairs" },
-      { name: "Mobility Scooters", keywords: "4 wheel mobility scooter adult electric elderly compact power electric transit", slug: "mobility-scooters" },
-      { name: "Medical Devices", keywords: "oxygen concentrator blood pressure monitor therapy rehabilitation health diagnostic device", slug: "medical-devices" },
-      { name: "Elderly Fitness", keywords: "elderly active rehabilitation trainer fitness exercise cycling device physical recovery", slug: "elderly-fitness" },
+      { name: "Electric Wheelchairs", slug: "wheelchairs" },
+      { name: "Mobility Scooters", slug: "mobility-scooters" },
+      { name: "Medical Devices", slug: "medical-devices" },
+      { name: "Elderly Fitness", slug: "elderly-fitness" },
     ],
   },
 ];
 
+export const CATEGORIES: Category[] = RAW_CATEGORIES.map((cat) => ({
+  ...cat,
+  keywords: getCategoryKeywords(cat.slug, cat.name),
+  subcategories: cat.subcategories.map((sub) => ({
+    ...sub,
+    keywords: getSubcategoryKeywords(cat.slug, sub.slug, sub.name),
+  })),
+}));
+
 export function getCategoryBySlug(slug: string): Category | undefined {
-  return CATEGORIES.find(c => c.slug === slug);
+  return CATEGORIES.find((c) => c.slug === slug);
 }
 
 export function getSubcategoryBySlug(catSlug: string, subSlug: string) {
   const cat = getCategoryBySlug(catSlug);
-  return cat?.subcategories.find(s => s.slug === subSlug);
+  return cat?.subcategories.find((s) => s.slug === subSlug);
 }
