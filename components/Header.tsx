@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useState, Suspense, useEffect, useRef, useMemo, useCallback } from "react";
 import { useShopStore } from "@/store/useShopStore";
 import {
@@ -76,33 +76,12 @@ const SUGGESTIONS = [
   "3D printer",
 ];
 
-const SEARCH_SYNC_EVENT = "shoppeak-search-sync";
-const SEARCH_STORAGE_KEY = "shoppeak:last-search";
-
-function broadcastSearchQuery(value: string) {
-  if (typeof window === "undefined") return;
-
-  const cleanValue = value.trim();
-
-  try {
-    window.localStorage.setItem(SEARCH_STORAGE_KEY, cleanValue);
-  } catch {
-    // ignore storage failures
-  }
-
-  window.dispatchEvent(
-    new CustomEvent(SEARCH_SYNC_EVENT, {
-      detail: { query: cleanValue },
-    })
-  );
-}
-
 function HeaderSearch() {
   const router = useRouter();
-  const pathname = usePathname();
   const searchParams = useSearchParams();
 
-  const [query, setQuery] = useState("");
+  const urlQuery = searchParams.get("q") || "";
+  const [query, setQuery] = useState(urlQuery);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [showSugg, setShowSugg] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -113,10 +92,11 @@ function HeaderSearch() {
   const cart = useShopStore((state) => state.cart);
   const wishlistBoards = useShopStore((state) => state.wishlistBoards);
 
-  const urlQuery = searchParams.get("q") || "";
-
   useEffect(() => {
     setMounted(true);
+  }, []);
+
+  useEffect(() => {
     setQuery(urlQuery);
   }, [urlQuery]);
 
@@ -133,24 +113,17 @@ function HeaderSearch() {
       item.toLowerCase().includes(cleanQuery)
     );
 
-    return (filtered.length ? filtered : SUGGESTIONS).slice(0, 6);
+    return (filtered.length ? filtered : SUGGESTIONS).slice(0, 8);
   }, [query]);
-
-  const syncFromUrl = useCallback(() => {
-    if (typeof window === "undefined") return;
-    setQuery(new URLSearchParams(window.location.search).get("q") || "");
-    setShowSugg(false);
-  }, []);
 
   const navigateToBrowse = useCallback(
     (value: string, method: "push" | "replace" = "push") => {
       const cleanValue = value.trim();
-      broadcastSearchQuery(cleanValue);
       setQuery(cleanValue);
       setShowSugg(false);
 
       const target = cleanValue ? `/browse?q=${encodeURIComponent(cleanValue)}` : "/browse";
-      router[method](target);
+      router[method](target, { scroll: false });
     },
     [router]
   );
@@ -162,13 +135,16 @@ function HeaderSearch() {
 
   const handleInputChange = (val: string) => {
     setQuery(val);
-    broadcastSearchQuery(val);
 
-    if (val.trim().length >= 2) {
+    const cleanValue = val.trim();
+    if (cleanValue.length >= 2) {
       setShowSugg(true);
     } else {
       setShowSugg(false);
     }
+
+    const target = cleanValue ? `/browse?q=${encodeURIComponent(cleanValue)}` : "/browse";
+    router.replace(target, { scroll: false });
   };
 
   useEffect(() => {
@@ -179,50 +155,19 @@ function HeaderSearch() {
       }
     };
 
-    const onSearchSync = (event: Event) => {
-      const custom = event as CustomEvent<{ query?: string }>;
-      const nextQuery = custom.detail?.query ?? "";
-      setQuery(nextQuery);
-    };
-
-    const onStorage = (event: StorageEvent) => {
-      if (event.key === SEARCH_STORAGE_KEY) {
-        setQuery(event.newValue || "");
-      }
-    };
-
-    const onPopState = () => syncFromUrl();
-
     document.addEventListener("mousedown", close);
-    window.addEventListener(SEARCH_SYNC_EVENT, onSearchSync as EventListener);
-    window.addEventListener("storage", onStorage);
-    window.addEventListener("popstate", onPopState);
-
-    return () => {
-      document.removeEventListener("mousedown", close);
-      window.removeEventListener(SEARCH_SYNC_EVENT, onSearchSync as EventListener);
-      window.removeEventListener("storage", onStorage);
-      window.removeEventListener("popstate", onPopState);
-    };
-  }, [syncFromUrl]);
+    return () => document.removeEventListener("mousedown", close);
+  }, []);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
-
-    setQuery(new URLSearchParams(window.location.search).get("q") || "");
     setDrawerOpen(false);
     setShowSugg(false);
-  }, [pathname, searchParams]);
+  }, [urlQuery]);
 
   const clearSearch = () => {
     setQuery("");
     setShowSugg(false);
-    broadcastSearchQuery("");
-
-    if (pathname.startsWith("/browse")) {
-      router.replace("/browse", { scroll: false });
-    }
-
+    router.replace("/browse", { scroll: false });
     inputRef.current?.focus();
   };
 
@@ -250,30 +195,33 @@ function HeaderSearch() {
               </span>
             </Link>
 
-            <form ref={searchWrapRef} onSubmit={handleSearch} className="flex-1 flex relative">
-              <input
-                ref={inputRef}
-                type="text"
-                value={query}
-                onChange={(e) => handleInputChange(e.target.value)}
-                onFocus={() => {
-                  if (query.trim().length >= 2) setShowSugg(true);
-                }}
-                placeholder="Search products, brands, categories..."
-                className="flex-1 px-4 py-2 text-sm rounded-l-full border-0 outline-none text-gray-800 bg-white min-w-0 placeholder-gray-400 focus:ring-2 focus:ring-orange-700 transition-all"
-                autoComplete="off"
-              />
-
-              {query.trim() ? (
-                <button
-                  type="button"
-                  onClick={clearSearch}
-                  className="bg-white hover:bg-gray-50 text-gray-500 px-2 sm:px-3 transition-colors border-l border-gray-100 flex-shrink-0"
-                  aria-label="Clear search"
-                >
-                  <X size={17} />
-                </button>
-              ) : null}
+            <form ref={searchWrapRef} onSubmit={handleSearch} className="flex-1 flex relative min-w-0">
+              <div className="flex-1 flex items-stretch bg-white rounded-l-full overflow-hidden min-w-0 shadow-sm">
+                <Search size={18} className="ml-4 my-auto text-gray-400 shrink-0" />
+                <input
+                  ref={inputRef}
+                  type="text"
+                  value={query}
+                  onChange={(e) => handleInputChange(e.target.value)}
+                  onFocus={() => {
+                    if (query.trim().length >= 2) setShowSugg(true);
+                  }}
+                  placeholder="Search products, brands, categories..."
+                  className="w-full px-3 py-2 text-sm sm:text-[15px] outline-none text-gray-800 bg-transparent min-w-0 placeholder-gray-400"
+                  autoComplete="off"
+                  spellCheck={false}
+                />
+                {query.trim() ? (
+                  <button
+                    type="button"
+                    onClick={clearSearch}
+                    className="bg-white hover:bg-gray-50 text-gray-500 px-2 sm:px-3 transition-colors border-l border-gray-100 flex-shrink-0"
+                    aria-label="Clear search"
+                  >
+                    <X size={17} />
+                  </button>
+                ) : null}
+              </div>
 
               <button
                 type="submit"
@@ -284,7 +232,7 @@ function HeaderSearch() {
               </button>
 
               {showSugg && filteredSuggestions.length > 0 && (
-                <div className="absolute top-full left-0 right-0 mt-1 bg-white shadow-xl rounded-xl border border-gray-100 overflow-hidden z-50">
+                <div className="absolute top-full left-0 right-0 mt-1 bg-white shadow-xl rounded-xl border border-gray-100 overflow-hidden z-50 max-h-72 overflow-y-auto">
                   {filteredSuggestions.map((suggestion) => (
                     <button
                       key={suggestion}
@@ -296,7 +244,7 @@ function HeaderSearch() {
                       className="flex items-center gap-2 w-full px-4 py-2.5 text-sm text-gray-700 hover:bg-orange-50 hover:text-orange-600 text-left transition-colors"
                     >
                       <Search size={13} className="text-gray-400 shrink-0" />
-                      {suggestion}
+                      <span className="truncate">{suggestion}</span>
                     </button>
                   ))}
                 </div>
