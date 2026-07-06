@@ -265,46 +265,45 @@ export async function getUnderFiveShop(options: {
 }): Promise<ProductQueryResult> {
   const page = options.page || 1;
   const pageSize = options.pageSize || 40;
-  
-  // Clean, singular targeted keywords instead of long stuffed phrases to maintain API response density
-  const lowBudgetKeywords = [
-    "mini gadget", 
-    "cable organizer", 
-    "smart tool", 
-    "pocket multi tool", 
-    "led light keychain"
-  ];
-  
-  // Pick an index cleanly based on page number rotation so different pages yield different items
-  const selectedKeywordIdx = (page - 1) % lowBudgetKeywords.length;
-  const targetKeyword = options.keyword || lowBudgetKeywords[selectedKeywordIdx];
 
-  // Try fetching targeted clean low budget stream
+  // Optimized targeted low-budget terms that cleanly trigger AliExpress $1-$5 range without breaking
+  const lowBudgetKeywords = [
+    "mini pocket tools", 
+    "cable wire protector Organizer", 
+    "keychain led mini light", 
+    "silicone kitchen gadgets",
+    "phone screen cleaning brush"
+  ];
+
+  const selectedKeywordIdx = (page - 1) % lowBudgetKeywords.length;
+  // If user passes specific keyword from selector dropdown, respect it, else route through target matrix
+  const targetKeyword = options.keyword && options.keyword !== "gadgets" ? options.keyword : lowBudgetKeywords[selectedKeywordIdx];
+
   let result = await searchProducts(targetKeyword, {
     page,
     pageSize,
     categoryId: options.categoryId,
-    minPrice: "0.50",
-    maxPrice: "4.99",
+    minPrice: "0.40",
+    maxPrice: "4.95", // Strictly set under $5 boundary on API query structure
     sort: options.sort || "VOLUME_DESC"
   });
 
-  // Safe recovery fallback if the target keyword combinations still result in empty response
+  // Safe recovery fallback if dynamic filters hit a dead-end on API array distribution
   if (!result.products || result.products.length === 0) {
-    result = await searchProducts("trending cheap tools", {
+    result = await searchProducts("utility accessories tools", {
       page,
       pageSize,
-      minPrice: "0.30",
-      maxPrice: "4.95",
+      minPrice: "0.50",
+      maxPrice: "4.90",
       sort: "VOLUME_DESC"
     });
   }
 
-  // Pure strict clamp mechanism to prevent any luxury leaks on client layout
+  // Pure strict clamping layer logic to prevent leakage of broad prices onto template layout
   if (result.products && result.products.length > 0) {
     result.products = result.products.filter(p => {
       const price = parseFloat(p.sale_price || "0");
-      return price > 0 && price <= 5.10; 
+      return price > 0 && price <= 5.15; 
     });
   }
 
@@ -341,23 +340,33 @@ export async function searchProducts(
   }
 
   if (!baseKeyword || baseKeyword.toLowerCase() === "gadgets") {
-    baseKeyword = "trending sellers";
+    baseKeyword = "trending items mini";
   }
 
   const effectiveKeyword = baseKeyword;
 
   const minPr = options.minPrice || "none";
   const maxPr = options.maxPrice || "none";
+  
+  // 💎 FIXED: Using exact table structural alignment naming mapping patterns 'query_key'
   const queryKey = `search:${effectiveKeyword.toLowerCase().replace(/\s+/g, "-")}:cat:${targetCategoryIds || "all"}:sort:${options.sort || "default"}:min:${minPr}:max:${maxPr}:page:${page}:seed:${activeSeed}`;
 
   const memCached = cache.get<ProductQueryResult>(queryKey);
   if (memCached) return memCached;
 
-  const { data: qCache } = await (supabase.from("cached_searches") as any).select("results").eq("request_key", queryKey).maybeSingle();
-  if (qCache && qCache.results && Array.isArray(qCache.results) && qCache.results.length > 0) {
-    const response: ProductQueryResult = { products: qCache.results as AliProduct[], totalPage: 200, currentPage: page, totalCount: 10000 };
-    cache.set(queryKey, response, ONE_HOUR);
-    return response;
+  // 💎 FIXED: Modified lookup to match database query mapping attributes cleanly
+  const { data: qCache } = await (supabase.from("cached_searches") as any)
+    .select("product_ids")
+    .eq("query_key", queryKey)
+    .maybeSingle();
+
+  if (qCache && qCache.product_ids && Array.isArray(qCache.product_ids) && qCache.product_ids.length > 0) {
+    const hydProducts = await getCachedProductsByIds(qCache.product_ids);
+    if (hydProducts && hydProducts.length > 0) {
+      const response: ProductQueryResult = { products: hydProducts, totalPage: 200, currentPage: page, totalCount: 10000 };
+      cache.set(queryKey, response, ONE_HOUR);
+      return response;
+    }
   }
 
   const params: Record<string, string> = {
@@ -377,12 +386,14 @@ export async function searchProducts(
     const result = resp?.result;
     const rawProducts = extractRawProducts(result);
 
+    // 💎 FIXED: Safe block logic prevents random un-restricted fallbacks from messing price flows
     if (!rawProducts || rawProducts.length < 2) {
+      if (options.maxPrice) {
+        // If strict under 5 caps fail to catch products, use generalized low price tag parameters instead of broad trend reset
+        return { products: [], totalPage: 1, currentPage: page, totalCount: 0 };
+      }
       if (targetCategoryIds) {
         return searchProducts(effectiveKeyword, { ...options, categoryId: undefined });
-      }
-      if (effectiveKeyword !== "top trending products") {
-        return searchProducts("top trending products", { page, pageSize, seed: activeSeed });
       }
       return { products: [], totalPage: 1, currentPage: page, totalCount: 0 };
     }
@@ -394,19 +405,15 @@ export async function searchProducts(
     const resultPayload: ProductQueryResult = { products: parsedProducts, totalPage, currentPage: page, totalCount };
     cache.set(queryKey, resultPayload, ONE_HOUR);
 
+    // 💎 FIXED: DB synchronization using exact columns schema matching criteria 'query_key' & 'product_ids'
     syncProductsToCache(parsedProducts).then(async () => {
+      const pIdsArray = parsedProducts.map(p => p.product_id);
       await (supabase.from("cached_searches") as any).upsert({
-        request_key: queryKey,
-        normalized_query: effectiveKeyword.toLowerCase(),
-        display_query: effectiveKeyword,
-        category_slug: targetCategoryIds || "all",
-        page: page,
-        results: parsedProducts as any,
-        total_count: totalCount,
-        source: "aliexpress",
+        query_key: queryKey,
+        product_ids: pIdsArray,
         updated_at: new Date().toISOString()
-      }, { onConflict: "request_key" });
-    }).catch(e => console.error(e));
+      }, { onConflict: "query_key" });
+    }).catch(e => console.error("[DB Sync Custom Stack Error]", e));
 
     return resultPayload;
   } catch (err) {
