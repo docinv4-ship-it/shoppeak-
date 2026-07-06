@@ -16,18 +16,19 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className="h-full antialiased selection:bg-amber-500/30 selection:text-amber-200">
-      <body className={`${inter.className} min-h-full flex flex-col bg-black text-white`}>
+      {/* FIX: text-white ko body se hata diya taake text inputs ka black/gray text hide na ho */}
+      <body className={`${inter.className} min-h-full flex flex-col bg-stone-950 text-stone-100`}>
         {/* Top Sticky & Responsive Navigation Panel */}
         <Header />
-        
+
         {/* Primary Page Layout Streams */}
         <main className="flex-1 w-full relative z-10">
           {children}
         </main>
-        
+
         {/* Global Floating High-Conversion Indicator Panel */}
         <CartBubble />
-        
+
         {/* Footnotes & Marketplace Disclaimers */}
         <Footer />
       </body>
