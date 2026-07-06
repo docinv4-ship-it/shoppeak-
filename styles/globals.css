@@ -16,6 +16,7 @@ input, select, textarea, option {
   background-color: #ffffff !important;    /* Background solid white */
   opacity: 1 !important;                   /* Blur/transparency khatam */
   -webkit-text-fill-color: #000000 !important; /* Mobile browsers override fix */
+  font-weight: 600 !important;             /* Text thoda bold aur sharp dikhe */
 }
 
 /* Search bar ke andar "Search products..." text ko sharp karne ke liye */
@@ -25,7 +26,34 @@ input::placeholder {
 }
 
 /* ==========================================
-   UTILITIES
+   🔥 FIX: FILTER BUTTONS & ICONS FULL VISIBILITY
+   ========================================== */
+
+/* Filter button ka background aur border clear karne ke liye */
+button, .filter-btn, [class*="filter"] {
+  opacity: 1 !important;
+}
+
+/* Button ke andar jo SVGs (Lucide icons) hain unko solid black/dark grey force karne ke liye */
+button svg, 
+.filter-btn svg,
+input + button svg,
+main svg,
+[class*="filter"] svg {
+  stroke: #1f2937 !important; /* Solid Dark Charcoal Gray */
+  fill: transparent !important;
+  opacity: 1 !important;
+}
+
+/* Agar filter box koi select dropdown ya custom card hai to uske text aur elements */
+select, option, drop-down {
+  color: #000000 !important;
+  background-color: #ffffff !important;
+  opacity: 1 !important;
+}
+
+/* ==========================================
+   STANDARD UTILITIES
    ========================================== */
 .line-clamp-1 { overflow: hidden; display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; }
 .line-clamp-2 { overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
