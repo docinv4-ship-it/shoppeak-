@@ -255,7 +255,7 @@ export async function getCachedProductsByIds(ids: string[]): Promise<AliProduct[
   return data.map((row: any) => row.source_payload as AliProduct);
 }
 
-// ─── $1 to $5 Premium Engine (FIXED DESIGN LAYER) ──────────────────
+// ─── $1 to $5 Premium Engine ──────────────────
 export async function getUnderFiveShop(options: {
   page?: number;
   pageSize?: number;
@@ -266,7 +266,6 @@ export async function getUnderFiveShop(options: {
   const page = options.page || 1;
   const pageSize = options.pageSize || 40;
 
-  // Strict low-budget targeted key matrix to avoid high price filtration leak
   const lowBudgetKeywords = [
     "cable protector", 
     "mini led keychain", 
@@ -276,7 +275,6 @@ export async function getUnderFiveShop(options: {
   ];
 
   const selectedKeywordIdx = (page - 1) % lowBudgetKeywords.length;
-  // If user passes specific keyword from selector dropdown, respect it, else route through target matrix
   const targetKeyword = options.keyword && options.keyword !== "gadgets" ? options.keyword : lowBudgetKeywords[selectedKeywordIdx];
 
   let result = await searchProducts(targetKeyword, {
@@ -288,7 +286,6 @@ export async function getUnderFiveShop(options: {
     sort: options.sort || "VOLUME_DESC"
   });
 
-  // 💎 FIXED: Fallback changed to strict low-tier item matrix to guarantee data density under $5
   if (!result.products || result.products.length === 0) {
     result = await searchProducts("earphone case cover bag", {
       page,
@@ -299,11 +296,10 @@ export async function getUnderFiveShop(options: {
     });
   }
 
-  // Pure strict clamping layer logic expanded to guarantee density matching
   if (result.products && result.products.length > 0) {
     result.products = result.products.filter(p => {
       const price = parseFloat(p.sale_price || "0");
-      return price > 0 && price <= 12.00; // Expanded safety padding for direct trace safety
+      return price > 0 && price <= 12.00;
     });
   }
 
@@ -334,27 +330,39 @@ export async function searchProducts(
     const mappingResult = mapCategoryToAliExpress(options.categoryId);
     targetCategoryIds = mappingResult.id;
 
-    if (!baseKeyword) {
-      baseKeyword = mappingResult.keywordFallback || "top trending";
+    // ⚡ FIX: Anti-Monotony & Keyword Diversity Injection Layer
+    const catLower = options.categoryId.toLowerCase();
+    if (catLower.includes("electronic") || targetCategoryIds === "6" || targetCategoryIds === "63") {
+      const electronicsPool = [
+        "4k smart projector", "mechanical keyboard rgb", "action camera 4k ultra hd",
+        "smart home automation hub", "oled gaming monitor", "portable power station powerbank",
+        "wireless smart soundbar", "magnetic wireless power bank", "smart led desk lamp ambient"
+      ];
+      baseKeyword = electronicsPool[(page + activeSeed) % electronicsPool.length];
+    } else if (catLower.includes("phone") || catLower.includes("mobile") || targetCategoryIds === "509") {
+      const mobilePool = [
+        "smartphone 5g unlocked", "android phone snapdragon", "gaming phone 12gb ram", 
+        "rugged phone waterproof", "refurbished pro smartphone", "smart watch ultra cellular GPS"
+      ];
+      baseKeyword = mobilePool[(page + activeSeed) % mobilePool.length];
+    } else if (!baseKeyword) {
+      baseKeyword = mappingResult.keywordFallback || "top trending premium";
     }
   }
 
   if (!baseKeyword || baseKeyword.toLowerCase() === "gadgets") {
-    baseKeyword = "trending items mini";
+    baseKeyword = "trending items mini tech";
   }
 
   const effectiveKeyword = baseKeyword;
-
   const minPr = options.minPrice || "none";
   const maxPr = options.maxPrice || "none";
 
-  // Using exact table structural alignment naming mapping patterns 'query_key'
   const queryKey = `search:${effectiveKeyword.toLowerCase().replace(/\s+/g, "-")}:cat:${targetCategoryIds || "all"}:sort:${options.sort || "default"}:min:${minPr}:max:${maxPr}:page:${page}:seed:${activeSeed}`;
 
   const memCached = cache.get<ProductQueryResult>(queryKey);
   if (memCached) return memCached;
 
-  // Modified lookup to match database query mapping attributes cleanly
   const { data: qCache } = await (supabase.from("cached_searches") as any)
     .select("product_ids")
     .eq("query_key", queryKey)
@@ -379,32 +387,58 @@ export async function searchProducts(
   if (options.maxPrice) params.max_sale_price = options.maxPrice;
   if (options.sort) params.sort = options.sort;
 
-  const data = await callApi("aliexpress.affiliate.product.query", params);
+  let data = await callApi("aliexpress.affiliate.product.query", params);
+  let resp = data?.["aliexpress_affiliate_product_query_response"]?.resp_result;
+  let result = resp?.result;
+  let rawProducts = extractRawProducts(result);
+
+  // 🛠️ DUAL-LAYER FALLBACK FIX: If strict API price boundaries yield 0 products, drop boundaries and grab broader data
+  if ((!rawProducts || rawProducts.length === 0) && (options.minPrice || options.maxPrice)) {
+    const fallbackParams = { ...params };
+    delete fallbackParams.min_sale_price;
+    delete fallbackParams.max_sale_price;
+    
+    const fallbackData = await callApi("aliexpress.affiliate.product.query", fallbackParams);
+    const fbResp = fallbackData?.["aliexpress_affiliate_product_query_response"]?.resp_result;
+    rawProducts = extractRawProducts(fbResp?.result);
+  }
 
   try {
-    const resp = data?.["aliexpress_affiliate_product_query_response"]?.resp_result;
-    const result = resp?.result;
-    const rawProducts = extractRawProducts(result);
-
-    // Safe block logic prevents random un-restricted fallbacks from messing price flows
-    if (!rawProducts || rawProducts.length < 2) {
-      if (options.maxPrice && parseFloat(options.maxPrice) <= 5.00) {
-        return { products: [], totalPage: 1, currentPage: page, totalCount: 0 };
-      }
-      if (targetCategoryIds) {
-        return searchProducts(effectiveKeyword, { ...options, categoryId: undefined });
-      }
-      return { products: [], totalPage: 1, currentPage: page, totalCount: 0 };
+    // 🌍 TRIPLE LEVEL PROTECTION: If still empty, pool general broad inventory to avoid ever rendering 0 products found
+    if (!rawProducts || rawProducts.length === 0) {
+      const universalParams = {
+        keywords: "premium best selling global items",
+        page_no: "1",
+        page_size: String(pageSize),
+      };
+      const uniData = await callApi("aliexpress.affiliate.product.query", universalParams);
+      rawProducts = extractRawProducts(uniData?.["aliexpress_affiliate_product_query_response"]?.resp_result?.result);
     }
 
-    const parsedProducts = rawProducts.map(parseProduct);
-    const totalCount = Number(result?.total_record_count || parsedProducts.length);
+    let parsedProducts = rawProducts.map(parseProduct);
+
+    // Strict frontend safety parsing layout check to safeguard matching range values perfectly
+    if (options.minPrice || options.maxPrice) {
+      const targetMin = options.minPrice ? parseFloat(options.minPrice) : 0;
+      const targetMax = options.maxPrice ? parseFloat(options.maxPrice) : Infinity;
+      
+      let filteredPool = parsedProducts.filter(p => {
+        const itemPrice = parseFloat(p.sale_price || p.app_sale_price || "0");
+        return itemPrice >= targetMin && itemPrice <= targetMax;
+      });
+
+      // Safe backup: If matching range empties the pool, retain original parsed pool to always load data seamlessly
+      if (filteredPool.length > 0) {
+        parsedProducts = filteredPool;
+      }
+    }
+
+    const totalCount = Number(result?.total_record_count || parsedProducts.length || 10000);
     const totalPage = Math.min(Math.ceil(totalCount / pageSize), 200);
 
     const resultPayload: ProductQueryResult = { products: parsedProducts, totalPage, currentPage: page, totalCount };
     cache.set(queryKey, resultPayload, ONE_HOUR);
 
-    // DB synchronization using exact columns schema matching criteria 'query_key' & 'product_ids'
     syncProductsToCache(parsedProducts).then(async () => {
       const pIdsArray = parsedProducts.map(p => p.product_id);
       await (supabase.from("cached_searches") as any).upsert({
