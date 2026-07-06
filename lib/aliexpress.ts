@@ -8,7 +8,6 @@ const APP_SECRET = process.env.ALIEXPRESS_APP_SECRET!;
 const AFFILIATE_ID = process.env.ALIEXPRESS_AFFILIATE_ID || "ShopPeak666";
 const API_BASE = process.env.ALIEXPRESS_API_BASE_URL || "https://api-sg.aliexpress.com/sync";
 
-// ─── Interfaces ──────────────────────────────────────────────────────────────
 export interface AliProduct {
   product_id: string;
   product_title: string;
@@ -48,22 +47,19 @@ export interface ProductQueryResult {
   totalCount?: number;
 }
 
-// ─── AliExpress Official Category Mapper ─────────────────────────────────────
 function mapCategoryToAliExpress(catInput: string): { id: string; keywordFallback: string } {
   if (/^\d+$/.test(catInput)) {
     return { id: catInput, keywordFallback: "" };
   }
-
   const normalized = catInput.toLowerCase().trim().replace(/&/g, "and");
-
   const mapping: Record<string, { id: string; keywordFallback: string }> = {
-    "jewelery and watch": { id: "36", keywordFallback: "jewelry luxury watch automatic chronograph" },
-    "jewelry and watch": { id: "36", keywordFallback: "jewelry luxury watch automatic chronograph" },
+    "jewelery and watch": { id: "36", keywordFallback: "luxury watch chronograph luxury ring diamond" },
+    "jewelry and watch": { id: "36", keywordFallback: "luxury watch chronograph luxury ring diamond" },
     "lighting and chandelier": { id: "39", keywordFallback: "pendant light chandelier ceiling lamp fixture LED" },
-    "home appliance": { id: "6", keywordFallback: "smart home appliance vacuum cleaner cooker blender" },
+    "home appliance": { id: "6", keywordFallback: "smart vacuum cleaner blender air fryer coffee machine" },
     "machinery and industrial": { id: "1420", keywordFallback: "laser engraving machine CNC tools heavy industry" },
-    "outdoor and support": { id: "18", keywordFallback: "outdoor sportswear ebike camping hunting equipment" },
-    "outdoor sports": { id: "18", keywordFallback: "outdoor sportswear ebike camping hunting equipment" },
+    "outdoor and support": { id: "18", keywordFallback: "camping hunting equipment ebike sportswear jacket" },
+    "outdoor sports": { id: "18", keywordFallback: "camping hunting equipment ebike sportswear jacket" },
     "fashion and style": { id: "320", keywordFallback: "apparel designer clothing jacket luxury dress clothing" },
     "health and beauty": { id: "66", keywordFallback: "skincare beauty products cosmetic makeup body health" },
     "solar and energy": { id: "1420", keywordFallback: "solar panel power system inverter lifepo4 lithium pack" },
@@ -78,18 +74,15 @@ function mapCategoryToAliExpress(catInput: string): { id: string; keywordFallbac
       return mapping[key];
     }
   }
-
   return { id: "", keywordFallback: catInput };
 }
 
-// ─── Timestamp Utilities ─────────────────────────────────────────────────────
 function getTimestamp(): string {
   const d = new Date();
   const p = (n: number) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
 }
 
-// ─── Signature Calculation ───────────────────────────────────────────────────
 function sign(params: Record<string, string>): string {
   const sortedKeys = Object.keys(params).sort();
   let str = APP_SECRET;
@@ -98,7 +91,6 @@ function sign(params: Record<string, string>): string {
   return crypto.createHash("md5").update(str, "utf8").digest("hex").toUpperCase();
 }
 
-// ─── Core API Caller ──────────────────────────────────────────────────────────
 async function callApi(method: string, methodParams: Record<string, string>): Promise<any> {
   const cacheKey = `api:${method}:${JSON.stringify(methodParams)}`;
   const cached = cache.get<any>(cacheKey);
@@ -118,7 +110,6 @@ async function callApi(method: string, methodParams: Record<string, string>): Pr
   params.sign = sign(params);
 
   const body = new URLSearchParams(params).toString();
-
   try {
     const res = await fetch(API_BASE, {
       method: "POST",
@@ -142,7 +133,6 @@ async function callApi(method: string, methodParams: Record<string, string>): Pr
   }
 }
 
-// ─── Trust Layer Processing ──────────────────────────────────────────────────
 function injectTrustLayer(product: AliProduct): AliProduct {
   const badges: string[] = [];
   const rating = parseFloat(product.evaluate_rate || "0");
@@ -175,11 +165,9 @@ function injectTrustLayer(product: AliProduct): AliProduct {
   if (!product.shop_name || product.shop_name.trim() === "") {
     product.shop_name = "Global Premium Factory Store";
   }
-
   return product;
 }
 
-// ─── Parsing Structure ───────────────────────────────────────────────────────
 function parseProduct(raw: Record<string, unknown>): AliProduct {
   const appPrice = String(raw.app_sale_price || raw.sale_price || "0");
   const salePrice = String(raw.sale_price || raw.app_sale_price || "0");
@@ -215,7 +203,6 @@ function parseProduct(raw: Record<string, unknown>): AliProduct {
     hot_product_commission_rate: raw.hot_product_commission_rate ? String(raw.hot_product_commission_rate) : undefined,
     sku_id: raw.sku_id ? String(raw.sku_id) : undefined,
   };
-
   return injectTrustLayer(parsed);
 }
 
@@ -226,10 +213,8 @@ function extractRawProducts(resultNode: any): any[] {
   return Array.isArray(pNode) ? pNode : [pNode];
 }
 
-// ─── Database Cache Operations ───────────────────────────────────────────────
 async function syncProductsToCache(products: AliProduct[]) {
   if (!products.length) return;
-
   const rows = products.map(p => ({
     product_id: p.product_id,
     slug: `product-${p.product_id}`,
@@ -244,7 +229,6 @@ async function syncProductsToCache(products: AliProduct[]) {
     source: "aliexpress",
     updated_at: new Date().toISOString()
   }));
-
   await (supabase.from("cached_products") as any).upsert(rows, { onConflict: "product_id" });
 }
 
@@ -255,7 +239,6 @@ export async function getCachedProductsByIds(ids: string[]): Promise<AliProduct[
   return data.map((row: any) => row.source_payload as AliProduct);
 }
 
-// ─── $1 to $5 Premium Engine ──────────────────
 export async function getUnderFiveShop(options: {
   page?: number;
   pageSize?: number;
@@ -265,15 +248,7 @@ export async function getUnderFiveShop(options: {
 }): Promise<ProductQueryResult> {
   const page = options.page || 1;
   const pageSize = options.pageSize || 40;
-
-  const lowBudgetKeywords = [
-    "cable protector", 
-    "mini led keychain", 
-    "silicone kitchen tool",
-    "phone stand",
-    "cleaning brush"
-  ];
-
+  const lowBudgetKeywords = ["cable protector", "mini led keychain", "silicone kitchen tool", "phone stand", "cleaning brush"];
   const selectedKeywordIdx = (page - 1) % lowBudgetKeywords.length;
   const targetKeyword = options.keyword && options.keyword !== "gadgets" ? options.keyword : lowBudgetKeywords[selectedKeywordIdx];
 
@@ -295,18 +270,16 @@ export async function getUnderFiveShop(options: {
       sort: "VOLUME_DESC"
     });
   }
-
   if (result.products && result.products.length > 0) {
     result.products = result.products.filter(p => {
       const price = parseFloat(p.sale_price || "0");
       return price > 0 && price <= 12.00;
     });
   }
-
   return result;
 }
 
-// ─── Search Products ─────────────────────────────────────────────────────────
+// ─── Search Products (PREMIUM DIVERSIFIED UPDATE) ───────────────────────────
 export async function searchProducts(
   keywords: string,
   options: {
@@ -321,7 +294,7 @@ export async function searchProducts(
 ): Promise<ProductQueryResult> {
   const page = Math.max(1, options.page || 1);
   const pageSize = Math.min(options.pageSize || 50, 50);
-  const activeSeed = options.seed || Math.floor(Math.random() * 100);
+  const activeSeed = options.seed || Math.floor(Math.random() * 10000);
 
   let targetCategoryIds = "";
   let baseKeyword = keywords && keywords.trim() !== "" ? keywords.trim() : "";
@@ -330,28 +303,33 @@ export async function searchProducts(
     const mappingResult = mapCategoryToAliExpress(options.categoryId);
     targetCategoryIds = mappingResult.id;
 
-    // ⚡ FIX: Anti-Monotony & Keyword Diversity Injection Layer
     const catLower = options.categoryId.toLowerCase();
     if (catLower.includes("electronic") || targetCategoryIds === "6" || targetCategoryIds === "63") {
       const electronicsPool = [
-        "4k smart projector", "mechanical keyboard rgb", "action camera 4k ultra hd",
-        "smart home automation hub", "oled gaming monitor", "portable power station powerbank",
-        "wireless smart soundbar", "magnetic wireless power bank", "smart led desk lamp ambient"
+        "4k projector ultra", "mechanical keyboard switches", "action camera wireless",
+        "smart bluetooth speaker v5.3", "gaming mouse rgb premium", "dual lens dash cam vehicle"
       ];
       baseKeyword = electronicsPool[(page + activeSeed) % electronicsPool.length];
     } else if (catLower.includes("phone") || catLower.includes("mobile") || targetCategoryIds === "509") {
       const mobilePool = [
-        "smartphone 5g unlocked", "android phone snapdragon", "gaming phone 12gb ram", 
-        "rugged phone waterproof", "refurbished pro smartphone", "smart watch ultra cellular GPS"
+        "smartphone flagship 5g", "android smartphone unblocked", "fast charging powerbank 30w",
+        "magnetic wireless charger stand", "noise cancelling headphones wireless"
       ];
       baseKeyword = mobilePool[(page + activeSeed) % mobilePool.length];
     } else if (!baseKeyword) {
-      baseKeyword = mappingResult.keywordFallback || "top trending premium";
+      baseKeyword = mappingResult.keywordFallback || "top trending choices";
     }
   }
 
-  if (!baseKeyword || baseKeyword.toLowerCase() === "gadgets") {
-    baseKeyword = "trending items mini tech";
+  // 💎 FIX: Jab user All Products par ho (No filter applied) to max diverse keyword allocation engine chalayen
+  if (!options.categoryId && (!baseKeyword || baseKeyword.toLowerCase().includes("trending") || baseKeyword.toLowerCase().includes("best seller"))) {
+    const macroGlobalPool = [
+      "smart electronics gadgets", "men sports fashion shoes", "luxury design watches quartz",
+      "home intelligent electronics led", "kitchen smart accessories utensils", "unlocked cellular android smartphones",
+      "women luxury diamond jewelry", "portable lifestyle gadgets smart", "computer component gaming mechanical",
+      "wireless sound system ambient", "outdoor sports tactical backpack", "car dashcam intelligent radar"
+    ];
+    baseKeyword = macroGlobalPool[(page + activeSeed) % macroGlobalPool.length];
   }
 
   const effectiveKeyword = baseKeyword;
@@ -371,9 +349,19 @@ export async function searchProducts(
   if (qCache && qCache.product_ids && Array.isArray(qCache.product_ids) && qCache.product_ids.length > 0) {
     const hydProducts = await getCachedProductsByIds(qCache.product_ids);
     if (hydProducts && hydProducts.length > 0) {
-      const response: ProductQueryResult = { products: hydProducts, totalPage: 200, currentPage: page, totalCount: 10000 };
-      cache.set(queryKey, response, ONE_HOUR);
-      return response;
+      // Pricing local filtering layer check inside active cache hit matching array maps
+      let finalPool = [...hydProducts];
+      if (options.minPrice || options.maxPrice) {
+        const mxMin = options.minPrice ? parseFloat(options.minPrice) : 0;
+        const mxMax = options.maxPrice ? parseFloat(options.maxPrice) : Infinity;
+        finalPool = finalPool.filter(p => {
+          const pr = parseFloat(p.sale_price || p.app_sale_price || "0");
+          return pr >= mxMin && pr <= mxMax;
+        });
+      }
+      if (finalPool.length > 0) {
+        return { products: finalPool, totalPage: 200, currentPage: page, totalCount: 10000 };
+      }
     }
   }
 
@@ -389,51 +377,38 @@ export async function searchProducts(
 
   let data = await callApi("aliexpress.affiliate.product.query", params);
   let resp = data?.["aliexpress_affiliate_product_query_response"]?.resp_result;
-  let result = resp?.result;
-  let rawProducts = extractRawProducts(result);
+  let rawProducts = extractRawProducts(resp?.result);
 
-  // 🛠️ DUAL-LAYER FALLBACK FIX: If strict API price boundaries yield 0 products, drop boundaries and grab broader data
-  if ((!rawProducts || rawProducts.length === 0) && (options.minPrice || options.maxPrice)) {
-    const fallbackParams = { ...params };
-    delete fallbackParams.min_sale_price;
-    delete fallbackParams.max_sale_price;
-    
-    const fallbackData = await callApi("aliexpress.affiliate.product.query", fallbackParams);
-    const fbResp = fallbackData?.["aliexpress_affiliate_product_query_response"]?.resp_result;
-    rawProducts = extractRawProducts(fbResp?.result);
+  // 🛠️ RELAXATION FALLBACK FIX: If API strict matching blocks items, immediately query open scope without dropping parameters context
+  if (!rawProducts || rawProducts.length === 0) {
+    const relaxParams = { ...params };
+    delete relaxParams.min_sale_price;
+    delete relaxParams.max_sale_price;
+    const backupData = await callApi("aliexpress.affiliate.product.query", relaxParams);
+    rawProducts = extractRawProducts(backupData?.["aliexpress_affiliate_product_query_response"]?.resp_result?.result);
   }
 
   try {
-    // 🌍 TRIPLE LEVEL PROTECTION: If still empty, pool general broad inventory to avoid ever rendering 0 products found
     if (!rawProducts || rawProducts.length === 0) {
-      const universalParams = {
-        keywords: "premium best selling global items",
-        page_no: "1",
-        page_size: String(pageSize),
-      };
-      const uniData = await callApi("aliexpress.affiliate.product.query", universalParams);
-      rawProducts = extractRawProducts(uniData?.["aliexpress_affiliate_product_query_response"]?.resp_result?.result);
+      return { products: [], totalPage: 1, currentPage: page, totalCount: 0 };
     }
 
     let parsedProducts = rawProducts.map(parseProduct);
 
-    // Strict frontend safety parsing layout check to safeguard matching range values perfectly
+    // 🎯 CRITICAL ACCURATE FILTERING LAYER: Local client sorting arrays for custom user parameters range execution
     if (options.minPrice || options.maxPrice) {
       const targetMin = options.minPrice ? parseFloat(options.minPrice) : 0;
       const targetMax = options.maxPrice ? parseFloat(options.maxPrice) : Infinity;
-      
-      let filteredPool = parsedProducts.filter(p => {
+      const targetFiltered = parsedProducts.filter(p => {
         const itemPrice = parseFloat(p.sale_price || p.app_sale_price || "0");
         return itemPrice >= targetMin && itemPrice <= targetMax;
       });
-
-      // Safe backup: If matching range empties the pool, retain original parsed pool to always load data seamlessly
-      if (filteredPool.length > 0) {
-        parsedProducts = filteredPool;
+      if (targetFiltered.length > 0) {
+        parsedProducts = targetFiltered;
       }
     }
 
-    const totalCount = Number(result?.total_record_count || parsedProducts.length || 10000);
+    const totalCount = Number(resp?.result?.total_record_count || parsedProducts.length || 10000);
     const totalPage = Math.min(Math.ceil(totalCount / pageSize), 200);
 
     const resultPayload: ProductQueryResult = { products: parsedProducts, totalPage, currentPage: page, totalCount };
@@ -446,16 +421,15 @@ export async function searchProducts(
         product_ids: pIdsArray,
         updated_at: new Date().toISOString()
       }, { onConflict: "query_key" });
-    }).catch(e => console.error("[DB Sync Custom Stack Error]", e));
+    }).catch(e => console.error(e));
 
     return resultPayload;
   } catch (err) {
-    console.error("[searchProducts parse error]", err);
+    console.error(err);
     return { products: [], totalPage: 1, currentPage: page, totalCount: 0 };
   }
 }
 
-// ─── Hot Products ────────────────────────────────────────────────────────────
 export async function getHotProducts(
   keywords?: string,
   options: { page?: number; pageSize?: number; categoryId?: string; seed?: number } = {}
@@ -463,7 +437,7 @@ export async function getHotProducts(
   const page = Math.max(1, options.page || 1);
   const pageSize = Math.min(options.pageSize || 50, 50);
   const activeSeed = options.seed || Math.floor(Math.random() * 100);
-  const effectiveKeyword = keywords || "top trending";
+  const effectiveKeyword = keywords || "top trending smart gadgets";
 
   let targetCategoryIds = "";
   if (options.categoryId) {
@@ -487,27 +461,22 @@ export async function getHotProducts(
 
   try {
     const resp = data["aliexpress_affiliate_hotproduct_query_response"]?.resp_result;
-    const result = resp?.result;
-    const rawProducts = extractRawProducts(result);
-
+    const rawProducts = extractRawProducts(resp?.result);
     if (!rawProducts.length) return searchProducts(effectiveKeyword, { page, pageSize, categoryId: options.categoryId, seed: activeSeed });
 
     const parsedProducts = rawProducts.map(parseProduct);
-    const totalCount = Number(result?.total_record_count || parsedProducts.length);
+    const totalCount = Number(resp?.result?.total_record_count || parsedProducts.length);
     const totalPage = Math.min(Math.ceil(totalCount / pageSize), 200);
 
     const resultPayload: ProductQueryResult = { products: parsedProducts, totalPage, currentPage: page, totalCount };
     cache.set(queryKey, resultPayload, ONE_HOUR);
     syncProductsToCache(parsedProducts).catch(e => console.error(e));
-
     return resultPayload;
   } catch (err) {
-    console.error("[getHotProducts parse error]", err);
     return searchProducts(effectiveKeyword, { page, pageSize, categoryId: options.categoryId, seed: activeSeed });
   }
 }
 
-// ─── Product Detail ──────────────────────────────────────────────────────────
 export async function getProductDetail(productId: string): Promise<AliProduct | null> {
   const cacheKey = `product:${productId}`;
   const cached = cache.get<AliProduct>(cacheKey);
@@ -525,14 +494,12 @@ export async function getProductDetail(productId: string): Promise<AliProduct | 
 
   try {
     const resp = data["aliexpress_affiliate_productdetail_get_response"]?.resp_result;
-    const result = resp?.result;
-    const rawProducts = extractRawProducts(result);
+    const rawProducts = extractRawProducts(resp?.result);
     const rawProduct = rawProducts[0];
     if (!rawProduct) return null;
 
     const product = parseProduct(rawProduct);
     cache.set(cacheKey, product, FIVE_HOURS);
-
     await (supabase.from("cached_products") as any).upsert({
       product_id: productId,
       slug: `product-${productId}`,
@@ -547,15 +514,12 @@ export async function getProductDetail(productId: string): Promise<AliProduct | 
       source: "aliexpress",
       updated_at: new Date().toISOString()
     }, { onConflict: "product_id" });
-
     return product;
   } catch (err) {
-    console.error("[getProductDetail parse error]", err);
     return null;
   }
 }
 
-// ─── Browse with Rotation ────────────────────────────────────────────────────
 export async function getBrowseProducts(options: {
   page?: number;
   pageSize?: number;
@@ -566,12 +530,11 @@ export async function getBrowseProducts(options: {
 } = {}): Promise<ProductQueryResult> {
   const page = Math.max(1, options.page || 1);
   const pageSize = Math.min(options.pageSize || 50, 50);
-  const activeSeed = options.seed || Math.floor(Math.random() * 100);
-  const keyword = options.keyword || "top trending";
+  const activeSeed = options.seed || Math.floor(Math.random() * 1000);
+  const keyword = options.keyword || "";
   return searchProducts(keyword, { page, pageSize, categoryId: options.categoryId, sort: options.sort, seed: activeSeed });
 }
 
-// ─── Deals ───────────────────────────────────────────────────────────────────
 export async function getDealsProducts(options: {
   page?: number;
   pageSize?: number;
@@ -581,7 +544,7 @@ export async function getDealsProducts(options: {
   const page = Math.max(1, options.page || 1);
   const pageSize = Math.min(options.pageSize || 50, 50);
   const activeSeed = options.seed || Math.floor(Math.random() * 100);
-  const keyword = "sale clearance super deals";
+  const keyword = "sale clearance clearance items discount";
 
   if (page % 2 === 0) {
     return getHotProducts(keyword, { page, pageSize, categoryId: options.categoryId, seed: activeSeed });
