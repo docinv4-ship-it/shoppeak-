@@ -18,7 +18,7 @@ export async function POST(req: NextRequest) {
     }
 
     // TARGET DELIVERY DESTINATION (Your internal inbound email)
-    const MY_INBOX_EMAIL = "support@shoppeak.com";
+    const MY_INBOX_EMAIL = "kg1338426@gmail.com";
 
     // Dispatching Inbound Notification via Resend directly to your inbox
     const emailResponse = await resend.emails.send({
