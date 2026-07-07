@@ -1,226 +1,168 @@
 import { NextResponse } from "next/server";
-import { Resend } from "resend";
-import crypto from "crypto";
 
 export const runtime = "nodejs";
 
-type ContactBody = {
+type ContactPayload = {
   name?: string;
   email?: string;
   subject?: string;
   message?: string;
-  website?: string; // honeypot
+  company?: string; // honeypot
 };
 
-const resendApiKey = process.env.RESEND_API_KEY;
-const fromEmail = process.env.RESEND_FROM_EMAIL || "ShopPeak <onboarding@resend.dev>";
-const supportEmail = process.env.SUPPORT_TO_EMAIL || process.env.CONTACT_TO_EMAIL || "support@shoppeak.com";
-
-const resend = resendApiKey ? new Resend(resendApiKey) : null;
-
-function escapeHtml(input: string) {
-  return input
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
-}
-
-function normalizeText(value: unknown) {
-  return String(value ?? "").trim();
-}
+const RESEND_API_KEY = process.env.RESEND_API_KEY || "";
+const TO_EMAIL = process.env.CONTACT_RECEIVER_EMAIL || "kg1338426@gmail.com";
+const FROM_EMAIL = process.env.CONTACT_SENDER_EMAIL || "ShopPeak <onboarding@resend.dev>";
 
 function isValidEmail(email: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
 
-function ticketId() {
-  const short = crypto.randomUUID().split("-")[0].toUpperCase();
-  return `SP-${short}`;
+function escapeHtml(value: string) {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
 
-function buildAdminHtml(data: {
-  ticketId: string;
-  name: string;
-  email: string;
-  subject: string;
-  message: string;
-  createdAt: string;
-}) {
-  return `
-    <div style="font-family: Arial, sans-serif; line-height:1.6; color:#111827;">
-      <h2 style="margin:0 0 12px;">New ShopPeak Support Request</h2>
-      <p style="margin:0 0 8px;"><strong>Ticket ID:</strong> ${escapeHtml(data.ticketId)}</p>
-      <p style="margin:0 0 8px;"><strong>Name:</strong> ${escapeHtml(data.name)}</p>
-      <p style="margin:0 0 8px;"><strong>Email:</strong> ${escapeHtml(data.email)}</p>
-      <p style="margin:0 0 8px;"><strong>Subject:</strong> ${escapeHtml(data.subject)}</p>
-      <p style="margin:0 0 8px;"><strong>Created At:</strong> ${escapeHtml(data.createdAt)}</p>
-      <hr style="border:none;border-top:1px solid #e5e7eb;margin:16px 0;" />
-      <p style="margin:0 0 8px;"><strong>Message:</strong></p>
-      <div style="white-space:pre-wrap;background:#f9fafb;padding:14px;border-radius:10px;border:1px solid #e5e7eb;">
-        ${escapeHtml(data.message)}
-      </div>
-    </div>
-  `;
-}
-
-function buildAdminText(data: {
-  ticketId: string;
-  name: string;
-  email: string;
-  subject: string;
-  message: string;
-  createdAt: string;
-}) {
-  return [
-    "New ShopPeak Support Request",
-    `Ticket ID: ${data.ticketId}`,
-    `Name: ${data.name}`,
-    `Email: ${data.email}`,
-    `Subject: ${data.subject}`,
-    `Created At: ${data.createdAt}`,
-    "",
-    "Message:",
-    data.message,
-  ].join("\n");
-}
-
-function buildUserHtml(data: {
-  ticketId: string;
-  name: string;
-  subject: string;
-}) {
-  return `
-    <div style="font-family: Arial, sans-serif; line-height:1.6; color:#111827;">
-      <h2 style="margin:0 0 12px;">We received your message</h2>
-      <p style="margin:0 0 8px;">Hi ${escapeHtml(data.name)},</p>
-      <p style="margin:0 0 8px;">
-        Thanks for contacting ShopPeak. Your request has been received and our team will review it shortly.
-      </p>
-      <p style="margin:0 0 8px;"><strong>Ticket ID:</strong> ${escapeHtml(data.ticketId)}</p>
-      <p style="margin:0 0 8px;"><strong>Subject:</strong> ${escapeHtml(data.subject)}</p>
-      <p style="margin:16px 0 0;">We usually reply within 24–48 hours.</p>
-    </div>
-  `;
-}
-
-function buildUserText(data: {
-  ticketId: string;
-  name: string;
-  subject: string;
-}) {
-  return [
-    `Hi ${data.name},`,
-    "",
-    "Thanks for contacting ShopPeak. Your request has been received and our team will review it shortly.",
-    "",
-    `Ticket ID: ${data.ticketId}`,
-    `Subject: ${data.subject}`,
-    "",
-    "We usually reply within 24–48 hours.",
-  ].join("\n");
-}
-
-export async function POST(request: Request) {
+export async function POST(req: Request) {
   try {
-    if (!resend) {
+    if (!RESEND_API_KEY) {
       return NextResponse.json(
-        { ok: false, error: "RESEND_API_KEY is missing." },
+        { success: false, error: "Resend API key is missing." },
         { status: 500 }
       );
     }
 
-    const body = (await request.json()) as ContactBody;
+    const body = (await req.json()) as ContactPayload;
 
-    const name = normalizeText(body.name);
-    const email = normalizeText(body.email).toLowerCase();
-    const subject = normalizeText(body.subject);
-    const message = normalizeText(body.message);
-    const honeypot = normalizeText(body.website);
+    const name = String(body.name || "").trim();
+    const email = String(body.email || "").trim();
+    const subject = String(body.subject || "").trim();
+    const message = String(body.message || "").trim();
+    const company = String(body.company || "").trim();
 
-    if (honeypot) {
+    if (company) {
       return NextResponse.json(
-        { ok: true, ticketId: ticketId(), message: "Submitted." },
-        { status: 200 }
-      );
-    }
-
-    if (!name || name.length < 2) {
-      return NextResponse.json({ ok: false, error: "Please enter your name." }, { status: 400 });
-    }
-
-    if (!email || !isValidEmail(email)) {
-      return NextResponse.json({ ok: false, error: "Please enter a valid email." }, { status: 400 });
-    }
-
-    if (!subject) {
-      return NextResponse.json({ ok: false, error: "Please choose a subject." }, { status: 400 });
-    }
-
-    if (!message || message.length < 10) {
-      return NextResponse.json(
-        { ok: false, error: "Please write a longer message." },
+        { success: false, error: "Spam detected." },
         { status: 400 }
       );
     }
 
-    if (name.length > 80 || subject.length > 120 || message.length > 3000) {
+    if (!name || !email || !subject || !message) {
       return NextResponse.json(
-        { ok: false, error: "One of the fields is too long." },
+        { success: false, error: "All fields are required." },
         { status: 400 }
       );
     }
 
-    const id = ticketId();
-    const createdAt = new Date().toISOString();
+    if (!isValidEmail(email)) {
+      return NextResponse.json(
+        { success: false, error: "Please enter a valid email address." },
+        { status: 400 }
+      );
+    }
 
-    const adminEmail = await resend.emails.send({
-      from: fromEmail,
-      to: [supportEmail],
-      subject: `New Contact Request — ${subject} (${id})`,
-      html: buildAdminHtml({ ticketId: id, name, email, subject, message, createdAt }),
-      text: buildAdminText({ ticketId: id, name, email, subject, message, createdAt }),
+    if (message.length < 10) {
+      return NextResponse.json(
+        { success: false, error: "Message is too short." },
+        { status: 400 }
+      );
+    }
+
+    const userAgent = req.headers.get("user-agent") || "Unknown";
+    const forwardedFor = req.headers.get("x-forwarded-for") || "Unknown";
+    const timestamp = new Date().toISOString();
+
+    const emailSubject = `[ShopPeak Support] ${subject}`;
+
+    const html = `
+      <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #111827;">
+        <h2 style="margin: 0 0 16px;">New Support Message</h2>
+
+        <table cellpadding="0" cellspacing="0" style="border-collapse: collapse; width: 100%; max-width: 720px;">
+          <tr>
+            <td style="padding: 8px 0; width: 140px; font-weight: bold;">Name</td>
+            <td style="padding: 8px 0;">${escapeHtml(name)}</td>
+          </tr>
+          <tr>
+            <td style="padding: 8px 0; font-weight: bold;">Email</td>
+            <td style="padding: 8px 0;">${escapeHtml(email)}</td>
+          </tr>
+          <tr>
+            <td style="padding: 8px 0; font-weight: bold;">Subject</td>
+            <td style="padding: 8px 0;">${escapeHtml(subject)}</td>
+          </tr>
+          <tr>
+            <td style="padding: 8px 0; font-weight: bold;">Message</td>
+            <td style="padding: 8px 0; white-space: pre-wrap;">${escapeHtml(message)}</td>
+          </tr>
+          <tr>
+            <td style="padding: 8px 0; font-weight: bold;">Timestamp</td>
+            <td style="padding: 8px 0;">${escapeHtml(timestamp)}</td>
+          </tr>
+          <tr>
+            <td style="padding: 8px 0; font-weight: bold;">IP</td>
+            <td style="padding: 8px 0;">${escapeHtml(forwardedFor)}</td>
+          </tr>
+          <tr>
+            <td style="padding: 8px 0; font-weight: bold;">User Agent</td>
+            <td style="padding: 8px 0;">${escapeHtml(userAgent)}</td>
+          </tr>
+        </table>
+      </div>
+    `;
+
+    const text = [
+      `New Support Message`,
+      ``,
+      `Name: ${name}`,
+      `Email: ${email}`,
+      `Subject: ${subject}`,
+      `Message: ${message}`,
+      `Timestamp: ${timestamp}`,
+      `IP: ${forwardedFor}`,
+      `User Agent: ${userAgent}`,
+    ].join("\n");
+
+    const response = await fetch("https://api.resend.com/emails", {
+      method: "POST",
       headers: {
-        "Idempotency-Key": `${id}-admin`,
+        Authorization: `Bearer ${RESEND_API_KEY}`,
+        "Content-Type": "application/json",
       },
+      body: JSON.stringify({
+        from: FROM_EMAIL,
+        to: [TO_EMAIL],
+        reply_to: email,
+        subject: emailSubject,
+        html,
+        text,
+      }),
     });
 
-    if (adminEmail.error) {
+    const data = await response.json().catch(() => null);
+
+    if (!response.ok) {
       return NextResponse.json(
-        { ok: false, error: adminEmail.error.message || "Failed to notify support." },
+        {
+          success: false,
+          error:
+            (data && (data.error || data.message)) ||
+            "Failed to send email.",
+        },
         { status: 500 }
       );
     }
 
-    const autoReply = await resend.emails.send({
-      from: fromEmail,
-      to: [email],
-      subject: `We received your message — ${subject}`,
-      html: buildUserHtml({ ticketId: id, name, subject }),
-      text: buildUserText({ ticketId: id, name, subject }),
-      headers: {
-        "Idempotency-Key": `${id}-user`,
-      },
-    });
-
-    if (autoReply.error) {
-      return NextResponse.json(
-        { ok: true, ticketId: id, message: "Support notified, but auto-reply failed." },
-        { status: 200 }
-      );
-    }
-
-    return NextResponse.json(
-      {
-        ok: true,
-        ticketId: id,
-        message: "Your message has been sent successfully.",
-      },
-      { status: 200 }
-    );
+    return NextResponse.json({ success: true });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unexpected error";
-    return NextResponse.json({ ok: false, error: message }, { status: 500 });
+    console.error("[Contact API Error]", error);
+    return NextResponse.json(
+      { success: false, error: "Something went wrong." },
+      { status: 500 }
+    );
   }
 }
